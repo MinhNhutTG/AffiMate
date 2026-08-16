@@ -188,7 +188,7 @@ export default function GenerateImagePage() {
                   <b>
                     Mô tả nền theo ý bạn{' '}
                     <span className="soon-badge" style={{ background: 'var(--warn-soft)', color: 'var(--warn)', marginLeft: 4 }}>
-                      Có watermark
+                      Thử nghiệm
                     </span>
                   </b>
                   <span>Tự nhập nền bạn muốn, AI vẽ theo mô tả</span>
@@ -222,7 +222,7 @@ export default function GenerateImagePage() {
                 />
                 <span className="hint">
                   AI sẽ vẽ nền mới theo mô tả này — có thể mất lâu hơn bình thường.{' '}
-                  <b style={{ color: 'var(--warn)' }}>Ảnh kết quả sẽ có watermark "Photoroom", chưa dùng để đăng bán được.</b>
+                  <b style={{ color: 'var(--warn)' }}>Tính năng đang thử nghiệm, chất lượng có thể chưa ổn định.</b>
                 </span>
               </div>
             )}
