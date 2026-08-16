@@ -155,12 +155,19 @@ Backend chỉ nhận và forward các key sau, mọi key khác bị bỏ qua (kh
 
 **`backgroundPrompt` — đã triển khai, KHÔNG cần nâng gói PhotoRoom Plus.** Ban đầu tưởng bắt buộc phải dùng "AI Backgrounds" của PhotoRoom Plus (endpoint `/v2/edit`, tham số `background.prompt`), nhưng thực tế làm được bằng cách ghép 3 bước hoàn toàn tách biệt — không phụ thuộc PhotoRoom cho phần sinh nền:
 1. **Xoá nền** ảnh gốc — vẫn dùng PhotoRoom Basic/free (`/v1/segment`, provider `photoroomBasic` sẵn có, mục 9.1) → ra ảnh PNG có nền trong suốt.
-2. **Sinh ảnh nền theo mô tả** — gọi **Hugging Face Inference API** (có gói miễn phí), model text-to-image (mặc định `black-forest-labs/FLUX.1-schnell`, cấu hình qua env `HUGGINGFACE_BG_MODEL`).
+2. **Sinh ảnh nền theo mô tả** — gọi **Hugging Face Inference Providers** qua SDK chính thức `@huggingface/inference` (`InferenceClient.textToImage()`), model text-to-image (mặc định `black-forest-labs/FLUX.1-schnell`, cấu hình qua env `HUGGINGFACE_BG_MODEL`).
 3. **Ghép ảnh** — dùng thư viện `sharp` (xử lý ảnh thuần, không cần AI) để resize ảnh nền cho khớp kích thước, rồi ghép ảnh sản phẩm (có alpha) lên trên.
 
 Về code: đây là provider riêng `aiBackgroundComposite` (mục 9.2), tự gọi lại `photoroomBasic.generate()` cho bước 1 — ví dụ cụ thể cho việc tái sử dụng provider đã có thay vì viết lại. `photoroomPlus` (mục 9.2) vẫn giữ nguyên là stub chưa triển khai, không còn là điều kiện bắt buộc cho tính năng này nữa.
 
-**Đánh đổi cần biết**: gói miễn phí của Hugging Face Inference API có giới hạn tốc độ/số request, model có thể "cold start" (chậm ở lần gọi đầu), và chất lượng/độ ổn định nhìn chung không bằng dịch vụ trả phí chuyên dụng. Tổng thời gian tạo 1 ảnh theo mô tả (xoá nền + sinh nền + ghép) **lâu hơn đáng kể** so với "xoá nền"/"đổi màu" thường (xem mục 9.1 — có thể tới ~1 phút thay vì ~20s).
+> ⚠️ **Đã sửa lại sau khi kiểm tra kỹ hơn**: bản đầu tiên định gọi thẳng endpoint REST cũ (`api-inference.huggingface.co/models/...`) — hoá ra Hugging Face đã đổi kiến trúc sang **"Inference Providers"** (router trung gian, phần lớn route qua nhà cung cấp thứ 3 tính phí). Đã đổi sang dùng SDK chính thức `@huggingface/inference` để SDK tự lo việc chọn provider khả dụng, tránh tự đoán sai định dạng request khi HF tiếp tục thay đổi kiến trúc.
+
+**Đánh đổi cần biết**:
+- Gói miễn phí của Hugging Face là **credit hàng tháng có hạn mức** (không phải unlimited) — dùng nhiều có thể hết credit, cần theo dõi thực tế mức tiêu thụ.
+- Model `black-forest-labs/FLUX.1-schnell` (Apache-2.0, dùng thương mại được) là model **"gated"** — người tạo `HUGGINGFACE_API_KEY` cần tự vào trang model trên huggingface.co bấm "Agree" 1 lần trước khi gọi được qua API.
+- Model có thể "cold start" (chậm ở lần gọi đầu), và chất lượng/độ ổn định nhìn chung không bằng dịch vụ trả phí chuyên dụng.
+- **Cẩn thận khi đổi model khác**: một số model text-to-image trên Hugging Face có giấy phép **cấm dùng thương mại** (vd `stabilityai/stable-diffusion-3-medium-diffusers` — Stability Non-Commercial Research Community License) — không phù hợp cho AffiMate (sản phẩm phục vụ bán hàng). Phải kiểm tra license của model trước khi đổi `HUGGINGFACE_BG_MODEL`.
+- Tổng thời gian tạo 1 ảnh theo mô tả (xoá nền + sinh nền + ghép) **lâu hơn đáng kể** so với "xoá nền"/"đổi màu" thường (xem mục 9.1 — có thể tới ~1 phút thay vì ~20s).
 
 ---
 

@@ -2,17 +2,21 @@
 // KHÔNG cần nâng gói Plus. Cách làm (3 bước hoàn toàn tách biệt, không phụ thuộc
 // PhotoRoom cho phần sinh nền):
 //   1. Xoá nền ảnh gốc — tái dùng provider photoroomBasic (miễn phí).
-//   2. Sinh ảnh nền theo mô tả text bằng Hugging Face Inference API (có gói miễn phí).
+//   2. Sinh ảnh nền theo mô tả text bằng Hugging Face Inference Providers (SDK chính
+//      thức `@huggingface/inference` — có gói miễn phí dạng credit, KHÔNG phải
+//      unlimited; SDK tự chọn provider khả dụng thay vì tự gọi 1 endpoint cố định,
+//      xem chuc-nang-tao-anh-ai.md mục 6 để biết bối cảnh đổi từ endpoint cũ).
 //   3. Ghép ảnh sản phẩm (đã xoá nền, có alpha) lên trên ảnh nền vừa sinh — dùng
 //      `sharp` xử lý ảnh tại chỗ, không cần AI cho bước này.
 const sharp = require('sharp');
-const { ImageAiUpstreamError } = require('../errors');
-const { fetchWithTimeout } = require('../fetchWithTimeout');
-const photoroomBasic = require('./photoroomBasic');
+const { InferenceClient } = require('@huggingface/inference');
+const { ImageAiUpstreamError, ImageAiTimeoutError } = require('../errors');
 
 const HF_TIMEOUT_MS = Number(process.env.HUGGINGFACE_TIMEOUT_MS || 30000);
+// Apache-2.0 (dùng thương mại được) — model này là "gated": người tạo
+// HUGGINGFACE_API_KEY cần vào trang model trên huggingface.co bấm "Agree" 1 lần
+// trước khi gọi được qua API (không phải rào cản pháp lý, chỉ là bước xác nhận).
 const HF_MODEL = process.env.HUGGINGFACE_BG_MODEL || 'black-forest-labs/FLUX.1-schnell';
-const HF_ENDPOINT = `https://api-inference.huggingface.co/models/${HF_MODEL}`;
 
 // Thêm hậu tố cố định để hướng model vẽ đúng 1 khung cảnh nền sạch, tránh sinh ra
 // vật thể/người lạ đè lên sản phẩm khi ghép ở bước 3.
@@ -25,28 +29,26 @@ async function generateBackgroundImage(userPrompt) {
     throw new ImageAiUpstreamError('Chưa cấu hình HUGGINGFACE_API_KEY để dùng tính năng mô tả nền');
   }
 
-  const res = await fetchWithTimeout(
-    HF_ENDPOINT,
-    {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${process.env.HUGGINGFACE_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ inputs: buildPrompt(userPrompt) }),
-    },
-    HF_TIMEOUT_MS
-  );
+  const client = new InferenceClient(process.env.HUGGINGFACE_API_KEY);
+  const timer = new AbortController();
+  const timeoutId = setTimeout(() => timer.abort(), HF_TIMEOUT_MS);
 
-  const contentType = res.headers.get('content-type') || '';
-  // Hugging Face Inference API trả lỗi (vd model đang "cold start") dạng JSON thay
-  // vì trả thẳng ảnh — coi đây cũng là lỗi upstream, không cố parse thành ảnh.
-  if (!res.ok || contentType.includes('application/json')) {
-    const detail = await res.text().catch(() => '');
-    throw new ImageAiUpstreamError(`Hugging Face lỗi HTTP ${res.status}: ${detail}`);
+  let imageBlob;
+  try {
+    imageBlob = await client.textToImage(
+      { model: HF_MODEL, inputs: buildPrompt(userPrompt) },
+      { signal: timer.signal }
+    );
+  } catch (err) {
+    if (err.name === 'AbortError') {
+      throw new ImageAiTimeoutError('Timeout');
+    }
+    throw new ImageAiUpstreamError(`Hugging Face lỗi: ${err.message}`);
+  } finally {
+    clearTimeout(timeoutId);
   }
 
-  return Buffer.from(await res.arrayBuffer());
+  return Buffer.from(await imageBlob.arrayBuffer());
 }
 
 async function compositeOverBackground(cutoutBuffer, backgroundBuffer) {

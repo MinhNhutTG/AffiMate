@@ -10,6 +10,7 @@
     "start": "node src/server.js"
   },
   "dependencies": {
+    "@huggingface/inference": "^4.13.26",
     "bcryptjs": "^3.0.3",
     "cloudinary": "^2.4.0",
     "cors": "^2.8.5",
