@@ -9,9 +9,13 @@ export default function ProductListPage() {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    listProducts()
+    const controller = new AbortController();
+    listProducts({ signal: controller.signal })
       .then(setProducts)
-      .catch((err) => setError(err.message));
+      .catch((err) => {
+        if (err.name !== 'AbortError') setError(err.message);
+      });
+    return () => controller.abort();
   }, []);
 
   const loading = products === null && !error;

@@ -13,11 +13,19 @@ export function AuthProvider({ children }) {
       setLoading(false);
       return;
     }
+    const controller = new AbortController();
     authApi
-      .fetchMe()
+      .fetchMe({ signal: controller.signal })
       .then(setUser)
-      .catch(() => clearToken())
-      .finally(() => setLoading(false));
+      .catch((err) => {
+        if (err.name !== 'AbortError') clearToken();
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
+      });
+    // Huỷ request khi effect chạy lại (StrictMode dev mode) hoặc unmount, tránh
+    // gọi /auth/me lặp lại không cần thiết.
+    return () => controller.abort();
   }, []);
 
   const login = useCallback(async (credentials) => {

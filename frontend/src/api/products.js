@@ -1,11 +1,11 @@
 import { request } from './client';
 
-export function listProducts() {
-  return request('/products');
+export function listProducts({ signal } = {}) {
+  return request('/products', { signal });
 }
 
-export function getProduct(id) {
-  return request(`/products/${id}`);
+export function getProduct(id, { signal } = {}) {
+  return request(`/products/${id}`, { signal });
 }
 
 export function createProduct({ name, description, files }) {

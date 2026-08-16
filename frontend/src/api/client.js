@@ -21,7 +21,11 @@ export function clearToken() {
   localStorage.removeItem(TOKEN_KEY);
 }
 
-export async function request(path, { method = 'GET', body, isFormData = false, auth = true } = {}) {
+// `signal` (AbortSignal, tuỳ chọn) — cho phép huỷ request khi component unmount,
+// tránh gọi lặp request khi effect chạy lại (vd React StrictMode ở dev mode chạy
+// lại effect 1 lần để kiểm tra cleanup — không có signal thì mỗi lần chạy lại sẽ
+// bắn thêm 1 request thật tới server dù chỉ cần kết quả của lần cuối).
+export async function request(path, { method = 'GET', body, isFormData = false, auth = true, signal } = {}) {
   const headers = {};
   if (!isFormData) headers['Content-Type'] = 'application/json';
   if (auth) {
@@ -33,6 +37,7 @@ export async function request(path, { method = 'GET', body, isFormData = false, 
     method,
     headers,
     body: isFormData ? body : body !== undefined ? JSON.stringify(body) : undefined,
+    signal,
   });
 
   const contentType = res.headers.get('content-type') || '';

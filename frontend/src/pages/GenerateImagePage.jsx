@@ -35,12 +35,16 @@ export default function GenerateImagePage() {
   const [quotaResetAt, setQuotaResetAt] = useState('');
 
   useEffect(() => {
-    getProduct(id)
+    const controller = new AbortController();
+    getProduct(id, { signal: controller.signal })
       .then((p) => {
         setProduct(p);
         if (p.originalImages.length === 1) setStep('options');
       })
-      .catch((err) => setLoadError(err.message));
+      .catch((err) => {
+        if (err.name !== 'AbortError') setLoadError(err.message);
+      });
+    return () => controller.abort();
   }, [id]);
 
   function buildOptions() {

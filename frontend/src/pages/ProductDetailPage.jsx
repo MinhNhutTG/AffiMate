@@ -31,18 +31,22 @@ export default function ProductDetailPage() {
   const [toast, setToast] = useState('');
   const [deleting, setDeleting] = useState(false);
 
-  const load = useCallback(() => {
+  const load = useCallback((signal) => {
     setError('');
-    Promise.all([getProduct(id), listImages(id, { limit: 20 })])
+    Promise.all([getProduct(id, { signal }), listImages(id, { limit: 20, signal })])
       .then(([p, imgRes]) => {
         setProduct(p);
         setImages(imgRes.items);
       })
-      .catch((err) => setError(err.message));
+      .catch((err) => {
+        if (err.name !== 'AbortError') setError(err.message);
+      });
   }, [id]);
 
   useEffect(() => {
-    load();
+    const controller = new AbortController();
+    load(controller.signal);
+    return () => controller.abort();
   }, [load]);
 
   function showToast(msg) {
