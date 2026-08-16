@@ -1,0 +1,35 @@
+/* Bảng màu/token lấy đúng từ bản mockup đã duyệt (affimate-mockup.html) để giữ
+   nhận diện nhất quán giữa mockup và app thật. */
+:root {
+  --bg: #faf7f1;
+  --surface: #ffffff;
+  --surface-alt: #f2ede2;
+  --ink: #20261d;
+  --ink-soft: #6c7365;
+  --ink-faint: #9ba192;
+  --line: #e7e1d2;
+
+  --brand: #0e8f6f;
+  --brand-soft: #e2f3eb;
+
+  --primary: #ff5b3c;
+  --primary-dark: #e24725;
+  --primary-ink: #ffffff;
+  --primary-soft: #ffe7de;
+
+  --warn: #c97a1f;
+  --warn-soft: #fbeedb;
+  --error: #d14343;
+  --error-soft: #fbe6e6;
+
+  --checker-a: #ededed;
+  --checker-b: #dcdcdc;
+
+  --disabled-bg: #edeae0;
+  --disabled-ink: #aea795;
+
+  --focus-ring: #e8532f;
+
+  --font-display: 'Baloo 2', system-ui, sans-serif;
+  --font-body: 'Be Vietnam Pro', system-ui, -apple-system, sans-serif;
+}
