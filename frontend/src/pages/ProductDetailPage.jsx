@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { getProduct, deleteProduct } from '../api/products';
 import { listImages, deleteImage } from '../api/images';
 import { SparkleIcon } from '../components/icons';
+import ConfirmDialog from '../components/ConfirmDialog';
 
 function optionsLabel(options) {
   if (options?.bgColor) return `Nền màu ${options.bgColor}`;
@@ -30,6 +31,7 @@ export default function ProductDetailPage() {
   const [error, setError] = useState('');
   const [toast, setToast] = useState('');
   const [deleting, setDeleting] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   const load = useCallback((signal) => {
     setError('');
@@ -70,14 +72,14 @@ export default function ProductDetailPage() {
   }
 
   async function handleDeleteProduct() {
-    if (!window.confirm('Xoá sản phẩm này?')) return;
     setDeleting(true);
     try {
       await deleteProduct(id);
       navigate('/products', { replace: true });
     } catch (err) {
-      setError(err.message);
+      setConfirmOpen(false);
       setDeleting(false);
+      setError(err.message);
     }
   }
 
@@ -178,10 +180,20 @@ export default function ProductDetailPage() {
           )}
         </div>
 
-        <button className="btn btn-ghost" onClick={handleDeleteProduct} disabled={deleting} style={{ marginTop: 8 }}>
-          {deleting ? 'Đang xoá…' : 'Xoá sản phẩm'}
+        <button className="btn btn-ghost" onClick={() => setConfirmOpen(true)} style={{ marginTop: 8, color: 'var(--error)' }}>
+          Xoá sản phẩm
         </button>
       </div>
+
+      <ConfirmDialog
+        open={confirmOpen}
+        title="Xoá sản phẩm này?"
+        message={`"${product.name}" và toàn bộ ảnh gốc sẽ bị xoá vĩnh viễn. Hành động này không thể hoàn tác.`}
+        confirmLabel="Xoá sản phẩm"
+        busy={deleting}
+        onConfirm={handleDeleteProduct}
+        onCancel={() => setConfirmOpen(false)}
+      />
 
       {toast && (
         <div
