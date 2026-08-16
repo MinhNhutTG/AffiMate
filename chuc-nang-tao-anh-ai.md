@@ -153,17 +153,27 @@ Backend chỉ nhận và forward các key sau, mọi key khác bị bỏ qua (kh
 
 > `bgColor` và `backgroundPrompt` **loại trừ nhau** — gửi cả 2 cùng lúc bị coi là option không hợp lệ (400).
 
-**`backgroundPrompt` — đã triển khai bằng chính PhotoRoom, KHÔNG cần nâng gói Plus trả phí.** PhotoRoom có **Sandbox mode** miễn phí áp dụng được cho cả Image Editing API (`/v2/edit`, gồm AI Backgrounds/`background.prompt`) — không phải chỉ Remove Background API. Cách dùng: thêm tiền tố `sandbox_` vào `PHOTOROOM_API_KEY` hiện có khi gửi header `x-api-key` (không cần tài khoản/key khác).
+**`backgroundPrompt` — mặc định dùng Cloudflare Workers AI, KHÔNG watermark, KHÔNG cần nâng gói PhotoRoom Plus.** Chọn provider qua env `BACKGROUND_PROMPT_PROVIDER`:
 
-> Lịch sử: 2 phương án trước đó (nâng gói Plus trả phí; tự ghép Hugging Face + `sharp`) đều đã bị thay bằng phương án này sau khi tra lại kỹ tài liệu PhotoRoom — đơn giản hơn nhiều (1 API call, PhotoRoom tự lo việc canh vị trí/ánh sáng/bóng đổ, đã test qua ảnh thật cho kết quả rất tốt) và không cần thêm tài khoản/thư viện ghép ảnh nào.
+| Giá trị | Provider code | Watermark | Giới hạn free | Ghi chú |
+|---|---|---|---|---|
+| `cloudflare` (mặc định) | `cloudflareBackgroundPrompt` | **Không** | 10.000 neurons/ngày, không cần thẻ tín dụng | Model mã nguồn mở (Stable Diffusion 1.5), **chưa test bằng credentials thật** — xem cảnh báo dưới |
+| `photoroom-sandbox` | `photoroomBackgroundPrompt` | **Có**, phủ kín ảnh | 1.000 lượt/tháng — 100 lượt/ngày CHUNG toàn app | Đã test bằng ảnh thật, chất lượng tốt (mục lịch sử bên dưới) |
 
-Về code: provider riêng `photoroomBackgroundPrompt` (mục 9.2), gọi `POST https://image-api.photoroom.com/v2/edit` với `imageFile` (binary, tải từ `sourceImageUrl` giống `photoroomBasic`), `referenceBox=originalImage` (giữ khung ảnh gốc để canh sản phẩm — theo đúng ví dụ chính thức PhotoRoom), và `background.prompt`. `photoroomPlus`/hướng Hugging Face không còn được dùng cho tính năng này.
+> Lịch sử các phương án đã thử cho tính năng này: (1) nâng gói PhotoRoom Plus trả phí — loại vì tốn phí; (2) tự ghép Hugging Face + `sharp` (compositing thô) — loại vì HF đổi kiến trúc sang router trả phí phần lớn; (3) PhotoRoom Sandbox — hoạt động tốt, nhưng ảnh có watermark; (4) **Cloudflare Workers AI (hiện tại)** — không watermark, free tier hào phóng hơn, nhưng dùng model mã nguồn mở (Stable Diffusion 1.5) nên chất lượng có thể không bằng model chuyên biệt của PhotoRoom.
 
-**⚠️ Đánh đổi QUAN TRỌNG cần biết — đã kiểm chứng bằng ảnh thật:**
-- **Ảnh trả về LUÔN có watermark "Photoroom" phủ kín (tile) toàn bộ ảnh** — không tắt được ở sandbox mode. Chỉ hết watermark nếu dùng key production thật của gói Plus (trả phí) — đổi qua env `PHOTOROOM_BACKGROUND_SANDBOX=false` khi đã nâng gói.
-- **Ảnh có watermark hiện KHÔNG dùng được cho mục đích thật** (đăng bán hàng trên TikTok Shop). **[ĐÃ CHỐT]** — trước mắt vẫn giữ hiển thị option này cho user dùng thử, chấp nhận watermark tạm thời (thay vì ẩn khỏi UI); nâng gói Plus (bỏ watermark) để sau, khi có ngân sách.
-- Giới hạn **1.000 lượt/tháng, tối đa 100 lượt/ngày** — tính **chung cho toàn app** (theo 1 API key), không phải riêng từng user. Với quota hiện tại (10 ảnh/user/ngày), chỉ cần ~10 user cùng dùng option này trong 1 ngày là có thể chạm trần sandbox chung — **chưa có cơ chế bảo vệ riêng cho giới hạn này** (mục 11).
-- Chất lượng thực tế đã test tốt: PhotoRoom tự xử lý đúng ánh sáng/bóng đổ/phối cảnh sản phẩm theo mô tả, không cần tự ghép ảnh thủ công.
+**Cách làm của `cloudflareBackgroundPrompt`** — inpainting đúng nghĩa (không phải ghép ảnh thô):
+1. Xoá nền bằng PhotoRoom Basic (miễn phí, có sẵn) — **chỉ để lấy alpha mask** phân biệt vùng sản phẩm/nền, không dùng ảnh xoá nền làm input cho Cloudflare.
+2. Suy ra mask inpainting từ kênh alpha (nền → mask cao = được vẽ lại; sản phẩm → mask thấp = giữ nguyên).
+3. Gọi `@cf/runwayml/stable-diffusion-v1-5-inpainting` (`POST https://api.cloudflare.com/client/v4/accounts/{ACCOUNT_ID}/ai/run/{model}`) với **ảnh gốc đầy đủ** (chưa xoá nền) + mask + `background.prompt` — model tự giữ nguyên vùng sản phẩm, chỉ vẽ lại vùng nền.
+
+**⚠️ CHƯA test bằng credentials thật** (cần `CLOUDFLARE_ACCOUNT_ID` + `CLOUDFLARE_API_TOKEN`, đăng ký miễn phí tại dash.cloudflare.com, không cần thẻ tín dụng). 2 điểm sau suy luận từ tài liệu công khai (Cloudflare không có ví dụ request/response cụ thể cho model này), **cần xác nhận lại bằng request thật** — giống tình huống đã từng phải sửa giả định sai với PhotoRoom `bg_color` và Hugging Face:
+- Quy ước giá trị mask (đang giả định: 255 = vẽ lại, 0 = giữ nguyên — quy ước phổ biến nhất họ Stable Diffusion).
+- Format response (đang xử lý cả 2 khả năng: binary ảnh trực tiếp hoặc JSON bọc base64).
+
+**Đánh đổi khác cần biết**: SD 1.5 làm việc ở độ phân giải 512×512 (thấp hơn ảnh gốc), giới hạn 10.000 neurons/ngày vẫn là **chung toàn tài khoản Cloudflare** (không phải riêng từng user) — cùng rủi ro với PhotoRoom Sandbox nhưng hạn mức cao hơn nhiều.
+
+Về code: cả 2 provider đăng ký trong `backgroundPromptProviders` (mục 9.2), `imageAiService` chọn theo `BACKGROUND_PROMPT_PROVIDER` — đổi qua lại giữa Cloudflare/PhotoRoom Sandbox chỉ cần đổi 1 biến môi trường, không sửa code.
 
 ---
 
@@ -264,9 +274,12 @@ Vì mục 9.1 đã xác nhận gói Basic bắt buộc fetch-rồi-forward, còn
 - Bên trong `imageAiService`, chọn 1 trong các "provider implementation" theo config (vd biến môi trường `IMAGE_AI_PROVIDER=photoroom-basic`) hoặc theo chính option client gửi lên:
   - `photoroomBasic` — tải buffer từ `sourceImageUrl`, forward `image_file` multipart tới `/v1/segment` (dùng cho `removeBackground`/`bgColor`).
   - `photoroomPlus` — gửi thẳng `imageUrl` tới `/v2/edit` bằng key production thật (khi nâng gói, chỉ cần thêm file này + đổi config, không sửa gì khác) — hiện vẫn là stub chưa triển khai, không bắt buộc.
-  - `photoroomBackgroundPrompt` — **đã triển khai**, xử lý riêng option `backgroundPrompt` (mục 6): gọi `POST /v2/edit` của PhotoRoom bằng **Sandbox mode** (key có tiền tố `sandbox_`, miễn phí nhưng ảnh có watermark — xem cảnh báo ở mục 6). Ví dụ cụ thể cho việc 1 option cần hẳn 1 provider riêng dù cùng là PhotoRoom, vì khác endpoint (`/v2/edit` so với `/v1/segment`) và khác cơ chế xác thực (tiền tố `sandbox_`).
-  - Nếu sau này đổi hẳn sang provider khác ngoài PhotoRoom, chỉ cần thêm 1 provider mới cùng interface — khớp với field `provider` đã có sẵn trong schema `GeneratedImage` ở `kientruc-ky-thuat.md` mục 3, cho thấy hướng nhiều-provider đã được tính từ đầu.
-  - `imageAiService.generate()` chọn `photoroomBackgroundPrompt` ngay khi thấy `options.backgroundPrompt` có giá trị, bất kể `IMAGE_AI_PROVIDER` đang cấu hình gì — vì đây luôn là lựa chọn đúng cho option đó, không phải 1 "gói" thay thế toàn bộ.
+  - `backgroundPromptProviders` — nhóm provider riêng cho option `backgroundPrompt` (mục 6), chọn qua env `BACKGROUND_PROMPT_PROVIDER`:
+    - `cloudflareBackgroundPrompt` (mặc định) — gọi Cloudflare Workers AI (`stable-diffusion-v1-5-inpainting`), không watermark, chưa test bằng credentials thật.
+    - `photoroomBackgroundPrompt` — gọi `POST /v2/edit` của PhotoRoom bằng **Sandbox mode** (key có tiền tố `sandbox_`), đã test thành công nhưng ảnh có watermark.
+  - Ví dụ cụ thể cho việc 1 option cần hẳn 1 (hoặc nhiều) provider riêng, tách biệt hoàn toàn khỏi provider xử lý `removeBackground`/`bgColor` — vì khác nhà cung cấp/endpoint/cơ chế xác thực hoàn toàn.
+  - Nếu sau này đổi hẳn sang provider khác, chỉ cần thêm 1 provider mới cùng interface vào `backgroundPromptProviders` (hoặc `providers`) — khớp với field `provider` đã có sẵn trong schema `GeneratedImage` ở `kientruc-ky-thuat.md` mục 3, cho thấy hướng nhiều-provider đã được tính từ đầu.
+  - `imageAiService.generate()` chọn 1 trong `backgroundPromptProviders` ngay khi thấy `options.backgroundPrompt` có giá trị, bất kể `IMAGE_AI_PROVIDER` đang cấu hình gì — vì đây luôn là lựa chọn đúng cho option đó, không phải 1 "gói" thay thế toàn bộ.
 - **Mapping option → tham số thật của provider** (vd `bgColor` → `bg_color`) nằm **bên trong provider**, không nằm ở controller — nhờ vậy whitelist option nội bộ (mục 6) giữ ổn định dù tên tham số thật của PhotoRoom đổi giữa các gói/version.
 
 Đây chỉ là 1 lớp interface mỏng (1 hàm, 1 factory chọn provider theo config) — không cần dựng hẳn hệ thống plugin phức tạp ở MVP, chỉ cần đủ để đổi gói/provider sau này không phải sửa rải rác nhiều nơi trong code.
@@ -290,11 +303,12 @@ Vì mục 9.1 đã xác nhận gói Basic bắt buộc fetch-rồi-forward, còn
 - [ ] Tạo sản phẩm với nhiều ảnh (vd 3 ảnh) → `Product.originalImageUrls` lưu đủ, đúng thứ tự upload.
 - [ ] Tạo ảnh AI, chọn đúng 1 ảnh trong nhiều ảnh gốc → `GeneratedImage.sourceImageUrl` đúng ảnh đã chọn; các ảnh gốc khác của sản phẩm không bị đụng tới.
 - [ ] Gửi `sourceImageUrl` không thuộc sản phẩm (URL ảnh của sản phẩm khác hoặc URL bất kỳ) → trả `400`, không gọi PhotoRoom.
-- [x] Tạo ảnh với `backgroundPrompt` → gọi PhotoRoom Sandbox (`/v2/edit`) → `status = success`, ảnh kết quả có nền đúng theo mô tả **(đã test bằng ảnh thật — chất lượng tốt, có watermark như đã biết)**.
+- [ ] Tạo ảnh với `backgroundPrompt` (provider `cloudflare`, mặc định) → `status = success`, ảnh kết quả không watermark, vùng sản phẩm giữ nguyên đúng như ảnh gốc, chỉ nền đổi theo mô tả — **CHƯA test bằng credentials thật**, cần làm khi có `CLOUDFLARE_ACCOUNT_ID`/`CLOUDFLARE_API_TOKEN`.
+- [x] Tạo ảnh với `backgroundPrompt` (provider `photoroom-sandbox`, dự phòng) → `status = success`, ảnh kết quả có nền đúng theo mô tả **(đã test bằng ảnh thật — chất lượng tốt, có watermark như đã biết)**.
 - [ ] Gửi cả `bgColor` và `backgroundPrompt` cùng lúc → trả `400` (loại trừ nhau, mục 6).
 - [ ] `backgroundPrompt` dài hơn 200 ký tự → trả `400`.
-- [ ] Chưa cấu hình `PHOTOROOM_API_KEY` mà vẫn gọi `backgroundPrompt` → `status = failed`, `502`, không crash server.
-- [ ] PhotoRoom Sandbox trả lỗi/hết lượt trong ngày (>100 lượt/ngày chung toàn app) → xử lý như lỗi upstream, thông báo rõ cho user (khác với "hết quota cá nhân" — cần phân biệt rõ ở UI).
+- [ ] Chưa cấu hình credentials của provider `backgroundPrompt` đang chọn (`CLOUDFLARE_*` hoặc `PHOTOROOM_API_KEY`) → `status = failed`, `502`, không crash server.
+- [ ] Provider `backgroundPrompt` trả lỗi/hết hạn mức trong ngày → xử lý như lỗi upstream, thông báo rõ cho user (khác với "hết quota cá nhân" — cần phân biệt rõ ở UI).
 
 ---
 
@@ -309,6 +323,8 @@ Vì mục 9.1 đã xác nhận gói Basic bắt buộc fetch-rồi-forward, còn
 7. Danh sách field thông tin mở rộng của sản phẩm (mục 4) — cần bạn cung cấp cụ thể để thiết kế schema.
 8. Tính năng "Sinh nội dung tự động" (mục 1, 3.1) — dự kiến khi nào cần spec chi tiết riêng?
 9. Xác nhận gói PhotoRoom đang đăng ký đúng là **Basic/free** (dùng endpoint `/v1/segment`, bắt buộc gửi `image_file` binary — mục 9.1) hay có kế hoạch nâng **Plus** (`/v2/edit`, hỗ trợ `imageUrl`) để quyết định có cần tối ưu bước fetch/forward ảnh gốc không.
-10. ~~Có đồng ý chi phí nâng gói PhotoRoom lên Plus không?~~ — không còn cần thiết ở bước hiện tại: option "Mô tả nền theo ý bạn" (`backgroundPrompt`) dùng PhotoRoom **Sandbox mode** (miễn phí, mục 6, 9.2), không cần key production/gói Plus trả phí.
-11. ~~Ảnh sandbox có watermark, chưa dùng được cho mục đích thật~~ — **[ĐÃ CHỐT]** giữ hiển thị option "Mô tả nền theo ý bạn" cho user dùng thử, chấp nhận watermark trước mắt; nâng gói Plus (bỏ watermark) để sau khi có ngân sách.
-12. Giới hạn sandbox **100 lượt/ngày chung cho toàn app** (không phải theo user) — cần cơ chế đếm/chặn riêng khi gần chạm trần (khác với quota 10 ảnh/user/ngày hiện có) để tránh 1 vài user dùng hết lượt sandbox rồi user khác gặp lỗi khó hiểu — hiện **chưa có cơ chế này**, mới chỉ ghi nhận là rủi ro biết trước.
+10. ~~Có đồng ý chi phí nâng gói PhotoRoom lên Plus không?~~ — không còn cần thiết: option "Mô tả nền theo ý bạn" (`backgroundPrompt`) mặc định dùng Cloudflare Workers AI (miễn phí, không watermark, mục 6, 9.2), không cần key production/gói Plus trả phí PhotoRoom.
+11. ~~Ảnh sandbox có watermark, chưa dùng được cho mục đích thật~~ — không còn là vấn đề với provider mặc định (Cloudflare, không watermark). PhotoRoom Sandbox (có watermark) chỉ còn là phương án dự phòng nếu Cloudflare không đạt chất lượng mong muốn.
+12. **[MỚI]** Cần bạn cung cấp `CLOUDFLARE_ACCOUNT_ID` + `CLOUDFLARE_API_TOKEN` (đăng ký miễn phí, không cần thẻ) để test thật provider `cloudflareBackgroundPrompt` — hiện mới chỉ code theo suy luận từ tài liệu, 2 giả định (quy ước mask, format response) chưa được xác nhận (xem cảnh báo mục 6).
+13. **[MỚI]** Nếu test Cloudflare cho chất lượng ảnh không đạt (SD 1.5 là model cũ, có thể thua PhotoRoom về độ chân thực/ánh sáng) — cần quyết định: chấp nhận chất lượng thấp hơn để đổi lấy không watermark, hay quay lại `photoroom-sandbox` (đổi 1 biến môi trường `BACKGROUND_PROMPT_PROVIDER`)?
+14. Giới hạn Cloudflare **10.000 neurons/ngày chung cho toàn tài khoản** (không phải theo user) — tương tự rủi ro đã ghi nhận với PhotoRoom Sandbox nhưng hạn mức cao hơn nhiều; vẫn **chưa có cơ chế đếm/chặn riêng** khi gần chạm trần.

@@ -4,7 +4,11 @@ const providers = {
   'photoroom-basic': require('./providers/photoroomBasic'),
   'photoroom-plus': require('./providers/photoroomPlus'),
 };
-const photoroomBackgroundPrompt = require('./providers/photoroomBackgroundPrompt');
+
+const backgroundPromptProviders = {
+  cloudflare: require('./providers/cloudflareBackgroundPrompt'),
+  'photoroom-sandbox': require('./providers/photoroomBackgroundPrompt'),
+};
 
 function getProvider() {
   const key = process.env.IMAGE_AI_PROVIDER || 'photoroom-basic';
@@ -15,16 +19,26 @@ function getProvider() {
   return impl;
 }
 
+function getBackgroundPromptProvider() {
+  const key = process.env.BACKGROUND_PROMPT_PROVIDER || 'cloudflare';
+  const impl = backgroundPromptProviders[key];
+  if (!impl) {
+    throw new Error(`BACKGROUND_PROMPT_PROVIDER không hợp lệ: ${key}`);
+  }
+  return impl;
+}
+
 // generate({ sourceImageUrl, options }) => { buffer, contentType }
 // hoặc throw ImageAiTimeoutError / ImageAiUpstreamError — controller không cần biết
 // provider bên trong xử lý bằng cách nào (fetch-rồi-forward hay gửi thẳng URL).
 //
-// `backgroundPrompt` luôn đi qua provider riêng (photoroomBackgroundPrompt —
-// PhotoRoom Sandbox mode, endpoint /v2/edit), KHÔNG phụ thuộc IMAGE_AI_PROVIDER —
-// xem chuc-nang-tao-anh-ai.md mục 6.
+// `backgroundPrompt` luôn đi qua 1 trong các provider riêng ở
+// `backgroundPromptProviders` (chọn qua env `BACKGROUND_PROMPT_PROVIDER`, mặc
+// định `cloudflare` — không watermark, xem chuc-nang-tao-anh-ai.md mục 6),
+// KHÔNG phụ thuộc IMAGE_AI_PROVIDER.
 function generate(args) {
   if (args.options?.backgroundPrompt) {
-    return photoroomBackgroundPrompt.generate(args);
+    return getBackgroundPromptProvider().generate(args);
   }
   return getProvider().generate(args);
 }
