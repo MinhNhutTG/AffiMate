@@ -25,10 +25,14 @@ async function fetchWithTimeout(url, opts, timeoutMs) {
 // Mapping whitelist nội bộ (mục 6 chuc-nang-tao-anh-ai.md) -> tham số thật của PhotoRoom.
 // Đặt trong provider, không ở controller, để đổi tên tham số thật không ảnh hưởng
 // tới whitelist nội bộ (mục 9.2).
+//
+// bg_color BẮT BUỘC giữ nguyên dấu '#' (định dạng hex code PhotoRoom yêu cầu, vd
+// '#FF00FF') — trước đây code lỡ .replace('#', '') làm mất dấu #, khiến PhotoRoom
+// trả lỗi 400 "wrong_key_value_combination" (đã xác nhận lại qua tài liệu PhotoRoom).
 function mapOptions(options) {
   const params = {};
   if (options.bgColor) {
-    params.bg_color = options.bgColor.replace('#', '');
+    params.bg_color = options.bgColor;
   }
   return params;
 }
