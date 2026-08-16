@@ -5,13 +5,23 @@ import { generateImage } from '../api/images';
 import { ApiError } from '../api/client';
 import { CheckIcon, DownloadIcon, TipIcon, WarnIcon, ClockIcon } from '../components/icons';
 
+// Bảng màu nền dạng "giấy phông studio" — đủ đa dạng tông trung tính/ấm/lạnh/pastel
+// cho ảnh sản phẩm, cộng thêm ô "Tuỳ chỉnh" bên dưới cho màu bất kỳ ngoài danh sách.
 const SWATCHES = [
   { name: 'Trắng', hex: '#FFFFFF' },
-  { name: 'Ngọc lam', hex: '#0E8F6F' },
-  { name: 'Cam san hô', hex: '#FF5B3C' },
-  { name: 'Hồng phấn', hex: '#F3C9C2' },
-  { name: 'Vàng bơ', hex: '#F0C64B' },
+  { name: 'Đen', hex: '#17181A' },
+  { name: 'Xám nhạt', hex: '#E4E1D8' },
   { name: 'Xám đá', hex: '#C9C2B2' },
+  { name: 'Kem', hex: '#F3EEE1' },
+  { name: 'Be', hex: '#E8D3B0' },
+  { name: 'Nâu gỗ', hex: '#8B5E3C' },
+  { name: 'Ngọc lam', hex: '#0E8F6F' },
+  { name: 'Xanh dương', hex: '#3B6FD9' },
+  { name: 'Xanh navy', hex: '#1E2A4A' },
+  { name: 'Cam san hô', hex: '#FF5B3C' },
+  { name: 'Vàng bơ', hex: '#F0C64B' },
+  { name: 'Hồng phấn', hex: '#F3C9C2' },
+  { name: 'Tím pastel', hex: '#D8C4E8' },
 ];
 
 function formatResetAt(iso) {
@@ -29,6 +39,7 @@ export default function GenerateImagePage() {
   const [sourceIndex, setSourceIndex] = useState(0);
   const [bgMode, setBgMode] = useState('transparent'); // transparent | color | prompt
   const [selectedSwatch, setSelectedSwatch] = useState(SWATCHES[0]);
+  const [customColor, setCustomColor] = useState('#888888');
   const [promptText, setPromptText] = useState('');
   const [result, setResult] = useState(null);
   const [errorMessage, setErrorMessage] = useState('');
@@ -202,13 +213,32 @@ export default function GenerateImagePage() {
                 {SWATCHES.map((sw) => (
                   <button
                     key={sw.hex}
-                    className={`swatch${selectedSwatch.hex === sw.hex ? ' selected' : ''}`}
+                    className={`swatch${selectedSwatch.name !== 'Tuỳ chỉnh' && selectedSwatch.hex === sw.hex ? ' selected' : ''}`}
                     style={{ background: sw.hex }}
                     title={sw.name}
                     onClick={() => setSelectedSwatch(sw)}
                   />
                 ))}
+                <label
+                  className={`swatch swatch-custom${selectedSwatch.name === 'Tuỳ chỉnh' ? ' selected' : ''}`}
+                  style={{ background: customColor }}
+                  title="Tuỳ chỉnh màu khác"
+                >
+                  <input
+                    type="color"
+                    value={customColor}
+                    onChange={(e) => {
+                      setCustomColor(e.target.value);
+                      setSelectedSwatch({ name: 'Tuỳ chỉnh', hex: e.target.value });
+                    }}
+                  />
+                </label>
               </div>
+            )}
+            {bgMode === 'color' && (
+              <span className="hint">
+                Đang chọn: {selectedSwatch.name} ({selectedSwatch.hex})
+              </span>
             )}
 
             {bgMode === 'prompt' && (

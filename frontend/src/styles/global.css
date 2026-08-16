@@ -332,8 +332,25 @@ a { color: var(--primary); }
 .opt-card.on .opt-radio::after { content: ''; position: absolute; inset: 3.5px; border-radius: 999px; background: var(--primary); }
 
 .swatch-row { display: flex; gap: 9px; padding: 2px 2px 0; flex-wrap: wrap; }
-.swatch { width: 32px; height: 32px; border-radius: 999px; border: none; cursor: pointer; box-shadow: inset 0 0 0 1.4px rgba(0, 0, 0, 0.08); }
+.swatch { width: 32px; height: 32px; border-radius: 999px; border: none; cursor: pointer; box-shadow: inset 0 0 0 1.4px rgba(0, 0, 0, 0.08); flex: 0 0 auto; }
 .swatch.selected { box-shadow: 0 0 0 2px var(--bg), 0 0 0 3.5px var(--primary); }
+.swatch-custom {
+  position: relative;
+  overflow: hidden;
+  display: block;
+  padding: 0;
+}
+.swatch-custom input[type='color'] {
+  position: absolute;
+  top: -30%;
+  left: -30%;
+  width: 160%;
+  height: 160%;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  background: none;
+}
 
 .quota-box { background: var(--surface); border: 1px solid var(--line); border-radius: 13px; padding: 11px 12px; display: flex; flex-direction: column; gap: 6px; }
 .quota-top { display: flex; justify-content: space-between; align-items: baseline; }
