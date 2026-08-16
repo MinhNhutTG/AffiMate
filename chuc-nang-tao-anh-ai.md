@@ -161,7 +161,7 @@ Về code: provider riêng `photoroomBackgroundPrompt` (mục 9.2), gọi `POST 
 
 **⚠️ Đánh đổi QUAN TRỌNG cần biết — đã kiểm chứng bằng ảnh thật:**
 - **Ảnh trả về LUÔN có watermark "Photoroom" phủ kín (tile) toàn bộ ảnh** — không tắt được ở sandbox mode. Chỉ hết watermark nếu dùng key production thật của gói Plus (trả phí) — đổi qua env `PHOTOROOM_BACKGROUND_SANDBOX=false` khi đã nâng gói.
-- **Ảnh có watermark hiện KHÔNG dùng được cho mục đích thật** (đăng bán hàng trên TikTok Shop) — chỉ phù hợp để demo/test tính năng ở giai đoạn hiện tại. Cần bạn xác nhận: có chấp nhận tạm để watermark cho tới khi nâng gói Plus, hay tạm ẩn option này khỏi UI cho tới khi có ngân sách?
+- **Ảnh có watermark hiện KHÔNG dùng được cho mục đích thật** (đăng bán hàng trên TikTok Shop). **[ĐÃ CHỐT]** — trước mắt vẫn giữ hiển thị option này cho user dùng thử, chấp nhận watermark tạm thời (thay vì ẩn khỏi UI); nâng gói Plus (bỏ watermark) để sau, khi có ngân sách.
 - Giới hạn **1.000 lượt/tháng, tối đa 100 lượt/ngày** — tính **chung cho toàn app** (theo 1 API key), không phải riêng từng user. Với quota hiện tại (10 ảnh/user/ngày), chỉ cần ~10 user cùng dùng option này trong 1 ngày là có thể chạm trần sandbox chung — **chưa có cơ chế bảo vệ riêng cho giới hạn này** (mục 11).
 - Chất lượng thực tế đã test tốt: PhotoRoom tự xử lý đúng ánh sáng/bóng đổ/phối cảnh sản phẩm theo mô tả, không cần tự ghép ảnh thủ công.
 
@@ -310,5 +310,5 @@ Vì mục 9.1 đã xác nhận gói Basic bắt buộc fetch-rồi-forward, còn
 8. Tính năng "Sinh nội dung tự động" (mục 1, 3.1) — dự kiến khi nào cần spec chi tiết riêng?
 9. Xác nhận gói PhotoRoom đang đăng ký đúng là **Basic/free** (dùng endpoint `/v1/segment`, bắt buộc gửi `image_file` binary — mục 9.1) hay có kế hoạch nâng **Plus** (`/v2/edit`, hỗ trợ `imageUrl`) để quyết định có cần tối ưu bước fetch/forward ảnh gốc không.
 10. ~~Có đồng ý chi phí nâng gói PhotoRoom lên Plus không?~~ — không còn cần thiết ở bước hiện tại: option "Mô tả nền theo ý bạn" (`backgroundPrompt`) dùng PhotoRoom **Sandbox mode** (miễn phí, mục 6, 9.2), không cần key production/gói Plus trả phí.
-11. **Ảnh sandbox có watermark "Photoroom" phủ kín, chưa dùng được cho mục đích thật (đăng bán hàng)** — cần bạn quyết định: (a) chấp nhận tạm để watermark cho tới khi có ngân sách nâng gói Plus, hay (b) tạm ẩn option "Mô tả nền theo ý bạn" khỏi UI cho người dùng thật, chỉ dùng nội bộ để demo/test cho tới khi nâng gói.
+11. ~~Ảnh sandbox có watermark, chưa dùng được cho mục đích thật~~ — **[ĐÃ CHỐT]** giữ hiển thị option "Mô tả nền theo ý bạn" cho user dùng thử, chấp nhận watermark trước mắt; nâng gói Plus (bỏ watermark) để sau khi có ngân sách.
 12. Giới hạn sandbox **100 lượt/ngày chung cho toàn app** (không phải theo user) — cần cơ chế đếm/chặn riêng khi gần chạm trần (khác với quota 10 ảnh/user/ngày hiện có) để tránh 1 vài user dùng hết lượt sandbox rồi user khác gặp lỗi khó hiểu — hiện **chưa có cơ chế này**, mới chỉ ghi nhận là rủi ro biết trước.
