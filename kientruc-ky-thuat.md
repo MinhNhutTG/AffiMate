@@ -133,10 +133,10 @@ PHOTOROOM_API_KEY=
 CLOUDINARY_CLOUD_NAME=
 CLOUDINARY_API_KEY=
 CLOUDINARY_API_SECRET=
-BACKGROUND_PROMPT_PROVIDER=    # cloudflare (mặc định, không watermark) | photoroom-sandbox (có watermark) — chuc-nang-tao-anh-ai.md mục 6
-CLOUDFLARE_ACCOUNT_ID=         # cho provider cloudflare
-CLOUDFLARE_API_TOKEN=          # cho provider cloudflare
-PHOTOROOM_BACKGROUND_SANDBOX=  # true = Sandbox mode PhotoRoom (dự phòng, ảnh có watermark)
+BACKGROUND_PROMPT_PROVIDER=    # photoroom-sandbox (mặc định, có watermark, ổn định) | cloudflare (không watermark, hay quá tải) — chuc-nang-tao-anh-ai.md mục 6. Tính năng này hiện khoá trên UI ("Đang phát triển"), chưa mở cho user thật.
+PHOTOROOM_BACKGROUND_SANDBOX=  # true = Sandbox mode PhotoRoom (mặc định, ảnh có watermark)
+CLOUDFLARE_ACCOUNT_ID=         # cho provider cloudflare (phương án phụ)
+CLOUDFLARE_API_TOKEN=          # cho provider cloudflare (phương án phụ)
 ```
 
 ---
@@ -149,4 +149,4 @@ PHOTOROOM_BACKGROUND_SANDBOX=  # true = Sandbox mode PhotoRoom (dự phòng, ả
 - Số lượng ảnh gốc tối đa/sản phẩm; có cho thêm/xoá ảnh gốc sau khi tạo sản phẩm hay chỉ set lúc tạo.
 - Danh sách field thông tin mở rộng của `Product` (ngoài `name`, `description`).
 - Tính năng "Sinh nội dung tự động" — chỉ đang có chỗ trống trên UI (thẻ sản phẩm), spec chi tiết (data model, API) để ở tài liệu riêng khi tới lượt triển khai.
-- Option "mô tả nền theo ý bạn" mặc định chạy qua Cloudflare Workers AI (không watermark) — **chưa test bằng credentials thật**, cần bạn cung cấp `CLOUDFLARE_ACCOUNT_ID`/`CLOUDFLARE_API_TOKEN` để xác nhận. Nếu chất lượng không đạt, có phương án dự phòng PhotoRoom Sandbox (đã test tốt nhưng có watermark) — chỉ cần đổi `BACKGROUND_PROMPT_PROVIDER` — xem chuc-nang-tao-anh-ai.md mục 11.
+- Option "mô tả nền theo ý bạn" hiện **khoá trên UI** ("Đang phát triển") — cả PhotoRoom Sandbox (ổn định, có watermark) và Cloudflare (không watermark, hay báo quá tải) đều đã test bằng credentials/ảnh thật, nhưng chưa phương án nào đạt cả 2 tiêu chí (miễn phí + ổn định + không watermark) để mở chính thức — xem chuc-nang-tao-anh-ai.md mục 11.

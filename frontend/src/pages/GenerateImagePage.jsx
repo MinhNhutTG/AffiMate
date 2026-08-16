@@ -193,18 +193,17 @@ export default function GenerateImagePage() {
                 </span>
                 <span className="opt-radio" />
               </button>
-              <button className={`opt-card${bgMode === 'prompt' ? ' on' : ''}`} onClick={() => setBgMode('prompt')}>
+              <button className="opt-card" disabled>
                 <span className="opt-swatch">Aa</span>
                 <span className="opt-txt">
                   <b>
                     Mô tả nền theo ý bạn{' '}
-                    <span className="soon-badge" style={{ background: 'var(--warn-soft)', color: 'var(--warn)', marginLeft: 4 }}>
-                      Thử nghiệm
+                    <span className="soon-badge" style={{ marginLeft: 4 }}>
+                      Đang phát triển
                     </span>
                   </b>
                   <span>Tự nhập nền bạn muốn, AI vẽ theo mô tả</span>
                 </span>
-                <span className="opt-radio" />
               </button>
             </div>
 

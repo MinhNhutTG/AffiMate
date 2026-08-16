@@ -20,7 +20,7 @@ function getProvider() {
 }
 
 function getBackgroundPromptProvider() {
-  const key = process.env.BACKGROUND_PROMPT_PROVIDER || 'cloudflare';
+  const key = process.env.BACKGROUND_PROMPT_PROVIDER || 'photoroom-sandbox';
   const impl = backgroundPromptProviders[key];
   if (!impl) {
     throw new Error(`BACKGROUND_PROMPT_PROVIDER không hợp lệ: ${key}`);
@@ -34,8 +34,9 @@ function getBackgroundPromptProvider() {
 //
 // `backgroundPrompt` luôn đi qua 1 trong các provider riêng ở
 // `backgroundPromptProviders` (chọn qua env `BACKGROUND_PROMPT_PROVIDER`, mặc
-// định `cloudflare` — không watermark, xem chuc-nang-tao-anh-ai.md mục 6),
-// KHÔNG phụ thuộc IMAGE_AI_PROVIDER.
+// định `photoroom-sandbox` — đã test ổn định 100%, có watermark; `cloudflare`
+// vẫn giữ làm phương án phụ, không watermark nhưng hay bị quá tải, xem
+// chuc-nang-tao-anh-ai.md mục 6), KHÔNG phụ thuộc IMAGE_AI_PROVIDER.
 function generate(args) {
   if (args.options?.backgroundPrompt) {
     return getBackgroundPromptProvider().generate(args);

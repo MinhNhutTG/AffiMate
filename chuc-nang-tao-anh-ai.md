@@ -40,7 +40,7 @@ Phạm vi MVP:
 
 ### 3.2 Tạo ảnh AI
 
-1. User bấm "Tạo ảnh AI" trên 1 sản phẩm → **chọn 1 ảnh gốc** trong gallery các ảnh đã upload làm nguồn (nếu sản phẩm chỉ có 1 ảnh gốc thì tự động chọn ảnh đó, bỏ qua bước chọn) → mở panel chọn option: "Xoá nền" / "Đổi màu nền" (bảng màu) / **"Mô tả nền theo ý bạn"** (ô nhập text tự do, vd "nền gỗ sáng, ánh nắng tự nhiên") — lựa chọn thứ 3 này cần gói PhotoRoom Plus (xem cảnh báo mục 6), nên hiện kèm nhãn "Cần nâng gói" cho tới khi ngân sách được duyệt.
+1. User bấm "Tạo ảnh AI" trên 1 sản phẩm → **chọn 1 ảnh gốc** trong gallery các ảnh đã upload làm nguồn (nếu sản phẩm chỉ có 1 ảnh gốc thì tự động chọn ảnh đó, bỏ qua bước chọn) → mở panel chọn option: "Xoá nền" / "Đổi màu nền" (bảng 14 màu preset + color picker tự do) — 2 option này dùng được ngay. **"Mô tả nền theo ý bạn"** (ô nhập text tự do) hiện **khoá (disabled), nhãn "Đang phát triển"** — đã có code xử lý ở backend nhưng chưa đủ ổn định để mở cho user thật (xem mục 6, mục 11).
 2. User xác nhận → frontend hiện trạng thái **loading** (không cho bấm tạo tiếp trong lúc chờ) → gửi `POST /api/products/:id/generate-image` kèm `sourceImageUrl` (ảnh gốc đã chọn) + `options`.
 3. Backend:
    - Kiểm tra quyền sở hữu (`product.userId === req.user.id`).
@@ -153,27 +153,20 @@ Backend chỉ nhận và forward các key sau, mọi key khác bị bỏ qua (kh
 
 > `bgColor` và `backgroundPrompt` **loại trừ nhau** — gửi cả 2 cùng lúc bị coi là option không hợp lệ (400).
 
-**`backgroundPrompt` — mặc định dùng Cloudflare Workers AI, KHÔNG watermark, KHÔNG cần nâng gói PhotoRoom Plus.** Chọn provider qua env `BACKGROUND_PROMPT_PROVIDER`:
+**`backgroundPrompt` — [ĐÃ CHỐT] đang đánh dấu "Đang phát triển" trên UI, CHƯA mở cho user thật dùng chính thức.** Nút chọn option này bị khoá (disabled) ở màn "Tuỳ chọn tạo ảnh" — user chỉ dùng được "Xoá nền" và "Đổi màu nền" (nay đã có thêm color picker tự do, không giới hạn 14 màu preset). Backend vẫn giữ nguyên logic xử lý `backgroundPrompt` (whitelist, provider...) để dễ mở lại khi sẵn sàng, chỉ chặn ở UI.
 
-| Giá trị | Provider code | Watermark | Giới hạn free | Ghi chú |
+Provider mặc định cho `backgroundPrompt` (khi mở lại): `photoroom-sandbox` — đổi qua env `BACKGROUND_PROMPT_PROVIDER`:
+
+| Giá trị | Provider code | Watermark | Giới hạn free | Độ ổn định (đã test) |
 |---|---|---|---|---|
-| `cloudflare` (mặc định) | `cloudflareBackgroundPrompt` | **Không** | 10.000 neurons/ngày, không cần thẻ tín dụng | Model mã nguồn mở (Stable Diffusion 1.5), **chưa test bằng credentials thật** — xem cảnh báo dưới |
-| `photoroom-sandbox` | `photoroomBackgroundPrompt` | **Có**, phủ kín ảnh | 1.000 lượt/tháng — 100 lượt/ngày CHUNG toàn app | Đã test bằng ảnh thật, chất lượng tốt (mục lịch sử bên dưới) |
+| `photoroom-sandbox` (mặc định) | `photoroomBackgroundPrompt` | **Có**, phủ kín ảnh | 1.000 lượt/tháng — 100 lượt/ngày CHUNG toàn app | ✅ **100% thành công** mọi lần test |
+| `cloudflare` | `cloudflareBackgroundPrompt` | Không | 10.000 neurons/ngày, không cần thẻ tín dụng | ❌ Request đúng định dạng (đã xác nhận) nhưng liên tục lỗi "Capacity temporarily exceeded" (mã 3040) — thử >10 lần trải dài nhiều phút đều lỗi |
 
-> Lịch sử các phương án đã thử cho tính năng này: (1) nâng gói PhotoRoom Plus trả phí — loại vì tốn phí; (2) tự ghép Hugging Face + `sharp` (compositing thô) — loại vì HF đổi kiến trúc sang router trả phí phần lớn; (3) PhotoRoom Sandbox — hoạt động tốt, nhưng ảnh có watermark; (4) **Cloudflare Workers AI (hiện tại)** — không watermark, free tier hào phóng hơn, nhưng dùng model mã nguồn mở (Stable Diffusion 1.5) nên chất lượng có thể không bằng model chuyên biệt của PhotoRoom.
+> Lịch sử các phương án đã thử: (1) nâng gói PhotoRoom Plus trả phí — loại vì tốn phí; (2) tự ghép Hugging Face + `sharp` — loại vì HF đổi kiến trúc sang router trả phí phần lớn; (3) **PhotoRoom Sandbox (đang dùng)** — ổn định 100%, nhưng có watermark; (4) Cloudflare Workers AI, model inpainting (`stable-diffusion-v1-5-inpainting`) — bỏ vì đoán sai tham số dựa trên docs không đầy đủ; (5) Cloudflare Workers AI, model img2img (`stable-diffusion-v1-5-img2img`) — request đúng định dạng theo ví dụ thật, nhưng hạ tầng miễn phí quá tải liên tục, chưa dùng được ổn định. Kết luận sau khi khảo sát cả các provider trả phí (Google Gemini/Nano Banana — model tốt nhất cho việc này nhưng **không có free tier**; OpenAI, Stability AI, Replicate — đều không có free tier bền vững): **không có lựa chọn nào vừa miễn phí, vừa ổn định, vừa không watermark** — đây là đánh đổi thật của thị trường, không phải do chọn sai.
 
-**Cách làm của `cloudflareBackgroundPrompt`** — inpainting đúng nghĩa (không phải ghép ảnh thô):
-1. Xoá nền bằng PhotoRoom Basic (miễn phí, có sẵn) — **chỉ để lấy alpha mask** phân biệt vùng sản phẩm/nền, không dùng ảnh xoá nền làm input cho Cloudflare.
-2. Suy ra mask inpainting từ kênh alpha (nền → mask cao = được vẽ lại; sản phẩm → mask thấp = giữ nguyên).
-3. Gọi `@cf/runwayml/stable-diffusion-v1-5-inpainting` (`POST https://api.cloudflare.com/client/v4/accounts/{ACCOUNT_ID}/ai/run/{model}`) với **ảnh gốc đầy đủ** (chưa xoá nền) + mask + `background.prompt` — model tự giữ nguyên vùng sản phẩm, chỉ vẽ lại vùng nền.
+**Cách làm của `cloudflareBackgroundPrompt`** (giữ trong code, chưa dùng làm mặc định) — request đã xác nhận đúng định dạng qua ví dụ thật của bên đăng ký: `POST https://api.cloudflare.com/client/v4/accounts/{ACCOUNT_ID}/ai/run/@cf/runwayml/stable-diffusion-v1-5-img2img` với `{ prompt, image: number[] (bytes ảnh gốc), strength }`, trả thẳng binary ảnh. Đây là img2img THUẦN (không mask) nên biến đổi toàn bộ ảnh theo `strength`, không đảm bảo giữ nguyên 100% dáng sản phẩm như cách có mask.
 
-**⚠️ CHƯA test bằng credentials thật** (cần `CLOUDFLARE_ACCOUNT_ID` + `CLOUDFLARE_API_TOKEN`, đăng ký miễn phí tại dash.cloudflare.com, không cần thẻ tín dụng). 2 điểm sau suy luận từ tài liệu công khai (Cloudflare không có ví dụ request/response cụ thể cho model này), **cần xác nhận lại bằng request thật** — giống tình huống đã từng phải sửa giả định sai với PhotoRoom `bg_color` và Hugging Face:
-- Quy ước giá trị mask (đang giả định: 255 = vẽ lại, 0 = giữ nguyên — quy ước phổ biến nhất họ Stable Diffusion).
-- Format response (đang xử lý cả 2 khả năng: binary ảnh trực tiếp hoặc JSON bọc base64).
-
-**Đánh đổi khác cần biết**: SD 1.5 làm việc ở độ phân giải 512×512 (thấp hơn ảnh gốc), giới hạn 10.000 neurons/ngày vẫn là **chung toàn tài khoản Cloudflare** (không phải riêng từng user) — cùng rủi ro với PhotoRoom Sandbox nhưng hạn mức cao hơn nhiều.
-
-Về code: cả 2 provider đăng ký trong `backgroundPromptProviders` (mục 9.2), `imageAiService` chọn theo `BACKGROUND_PROMPT_PROVIDER` — đổi qua lại giữa Cloudflare/PhotoRoom Sandbox chỉ cần đổi 1 biến môi trường, không sửa code.
+Về code: cả 2 provider đăng ký trong `backgroundPromptProviders` (mục 9.2), `imageAiService` chọn theo `BACKGROUND_PROMPT_PROVIDER` — đổi qua lại giữa PhotoRoom Sandbox/Cloudflare chỉ cần đổi 1 biến môi trường, không sửa code.
 
 ---
 
@@ -303,8 +296,8 @@ Vì mục 9.1 đã xác nhận gói Basic bắt buộc fetch-rồi-forward, còn
 - [ ] Tạo sản phẩm với nhiều ảnh (vd 3 ảnh) → `Product.originalImageUrls` lưu đủ, đúng thứ tự upload.
 - [ ] Tạo ảnh AI, chọn đúng 1 ảnh trong nhiều ảnh gốc → `GeneratedImage.sourceImageUrl` đúng ảnh đã chọn; các ảnh gốc khác của sản phẩm không bị đụng tới.
 - [ ] Gửi `sourceImageUrl` không thuộc sản phẩm (URL ảnh của sản phẩm khác hoặc URL bất kỳ) → trả `400`, không gọi PhotoRoom.
-- [ ] Tạo ảnh với `backgroundPrompt` (provider `cloudflare`, mặc định) → `status = success`, ảnh kết quả không watermark, vùng sản phẩm giữ nguyên đúng như ảnh gốc, chỉ nền đổi theo mô tả — **CHƯA test bằng credentials thật**, cần làm khi có `CLOUDFLARE_ACCOUNT_ID`/`CLOUDFLARE_API_TOKEN`.
-- [x] Tạo ảnh với `backgroundPrompt` (provider `photoroom-sandbox`, dự phòng) → `status = success`, ảnh kết quả có nền đúng theo mô tả **(đã test bằng ảnh thật — chất lượng tốt, có watermark như đã biết)**.
+- [x] Tạo ảnh với `backgroundPrompt` (provider `photoroom-sandbox`, **mặc định**) → `status = success`, ảnh kết quả có nền đúng theo mô tả **(đã test bằng ảnh thật nhiều lần — 100% thành công, có watermark như đã biết)**.
+- [x] Tạo ảnh với `backgroundPrompt` (provider `cloudflare`, phương án phụ) → **đã test bằng credentials thật** (`CLOUDFLARE_ACCOUNT_ID`/`CLOUDFLARE_API_TOKEN`) — request đúng định dạng (auth + tham số được chấp nhận), nhưng >10 lần thử đều lỗi `429 Capacity temporarily exceeded` từ phía Cloudflare, chưa lần nào ra được ảnh thành công để đánh giá chất lượng.
 - [ ] Gửi cả `bgColor` và `backgroundPrompt` cùng lúc → trả `400` (loại trừ nhau, mục 6).
 - [ ] `backgroundPrompt` dài hơn 200 ký tự → trả `400`.
 - [ ] Chưa cấu hình credentials của provider `backgroundPrompt` đang chọn (`CLOUDFLARE_*` hoặc `PHOTOROOM_API_KEY`) → `status = failed`, `502`, không crash server.
@@ -323,8 +316,8 @@ Vì mục 9.1 đã xác nhận gói Basic bắt buộc fetch-rồi-forward, còn
 7. Danh sách field thông tin mở rộng của sản phẩm (mục 4) — cần bạn cung cấp cụ thể để thiết kế schema.
 8. Tính năng "Sinh nội dung tự động" (mục 1, 3.1) — dự kiến khi nào cần spec chi tiết riêng?
 9. Xác nhận gói PhotoRoom đang đăng ký đúng là **Basic/free** (dùng endpoint `/v1/segment`, bắt buộc gửi `image_file` binary — mục 9.1) hay có kế hoạch nâng **Plus** (`/v2/edit`, hỗ trợ `imageUrl`) để quyết định có cần tối ưu bước fetch/forward ảnh gốc không.
-10. ~~Có đồng ý chi phí nâng gói PhotoRoom lên Plus không?~~ — không còn cần thiết: option "Mô tả nền theo ý bạn" (`backgroundPrompt`) mặc định dùng Cloudflare Workers AI (miễn phí, không watermark, mục 6, 9.2), không cần key production/gói Plus trả phí PhotoRoom.
-11. ~~Ảnh sandbox có watermark, chưa dùng được cho mục đích thật~~ — không còn là vấn đề với provider mặc định (Cloudflare, không watermark). PhotoRoom Sandbox (có watermark) chỉ còn là phương án dự phòng nếu Cloudflare không đạt chất lượng mong muốn.
-12. **[MỚI]** Cần bạn cung cấp `CLOUDFLARE_ACCOUNT_ID` + `CLOUDFLARE_API_TOKEN` (đăng ký miễn phí, không cần thẻ) để test thật provider `cloudflareBackgroundPrompt` — hiện mới chỉ code theo suy luận từ tài liệu, 2 giả định (quy ước mask, format response) chưa được xác nhận (xem cảnh báo mục 6).
-13. **[MỚI]** Nếu test Cloudflare cho chất lượng ảnh không đạt (SD 1.5 là model cũ, có thể thua PhotoRoom về độ chân thực/ánh sáng) — cần quyết định: chấp nhận chất lượng thấp hơn để đổi lấy không watermark, hay quay lại `photoroom-sandbox` (đổi 1 biến môi trường `BACKGROUND_PROMPT_PROVIDER`)?
-14. Giới hạn Cloudflare **10.000 neurons/ngày chung cho toàn tài khoản** (không phải theo user) — tương tự rủi ro đã ghi nhận với PhotoRoom Sandbox nhưng hạn mức cao hơn nhiều; vẫn **chưa có cơ chế đếm/chặn riêng** khi gần chạm trần.
+10. ~~Có đồng ý chi phí nâng gói PhotoRoom lên Plus không?~~ — không cần: `backgroundPrompt` dùng PhotoRoom **Sandbox mode** (miễn phí, mục 6), không cần key production/gói Plus trả phí.
+11. **[ĐÃ CHỐT]** Ảnh sandbox có watermark → tạm thời **khoá hẳn option "Mô tả nền theo ý bạn" khỏi UI** (nhãn "Đang phát triển"), không cho user thật dùng cho tới khi có phương án không watermark ổn định. Khác quyết định trước đó (từng định cho dùng thử có watermark) — đổi lại sau khi thấy Cloudflare (phương án không watermark) chưa đủ ổn định để thay thế.
+12. ~~Cần credentials Cloudflare để test provider `cloudflareBackgroundPrompt`~~ — **đã test xong** bằng `CLOUDFLARE_ACCOUNT_ID`/`CLOUDFLARE_API_TOKEN` thật. Kết quả: request đúng định dạng (đã sửa từ model inpainting sang img2img theo ví dụ thật) nhưng liên tục lỗi "Capacity temporarily exceeded" — xem mục 6.
+13. **Khi nào mở lại "Mô tả nền theo ý bạn" cho user thật?** — cần 1 trong các điều kiện: (a) Cloudflare hết quá tải và ổn định qua nhiều lần test lại, hoặc (b) chấp nhận watermark của PhotoRoom Sandbox và cho dùng thử có cảnh báo, hoặc (c) có ngân sách nâng gói PhotoRoom Plus / dịch vụ trả phí khác (Google Gemini/Nano Banana — chất lượng tốt nhất nhưng không có free tier). Hiện chưa chọn hướng nào, tạm khoá hẳn (mục 11 câu 11).
+14. Giới hạn Cloudflare **10.000 neurons/ngày chung cho toàn tài khoản** (không phải theo user) — tương tự rủi ro đã ghi nhận với PhotoRoom Sandbox; vẫn **chưa có cơ chế đếm/chặn riêng** khi gần chạm trần — chưa cấp thiết vì tính năng đang khoá, chưa có traffic thật.
