@@ -133,8 +133,7 @@ PHOTOROOM_API_KEY=
 CLOUDINARY_CLOUD_NAME=
 CLOUDINARY_API_KEY=
 CLOUDINARY_API_SECRET=
-HUGGINGFACE_API_KEY=   # dùng cho option "mô tả nền theo ý bạn" — chuc-nang-tao-anh-ai.md mục 6
-HUGGINGFACE_BG_MODEL=  # model text-to-image, mặc định black-forest-labs/FLUX.1-schnell
+PHOTOROOM_BACKGROUND_SANDBOX=  # true = dùng Sandbox mode PhotoRoom (miễn phí, ảnh có watermark) cho option "mô tả nền theo ý bạn" — chuc-nang-tao-anh-ai.md mục 6
 ```
 
 ---
@@ -147,3 +146,4 @@ HUGGINGFACE_BG_MODEL=  # model text-to-image, mặc định black-forest-labs/FL
 - Số lượng ảnh gốc tối đa/sản phẩm; có cho thêm/xoá ảnh gốc sau khi tạo sản phẩm hay chỉ set lúc tạo.
 - Danh sách field thông tin mở rộng của `Product` (ngoài `name`, `description`).
 - Tính năng "Sinh nội dung tự động" — chỉ đang có chỗ trống trên UI (thẻ sản phẩm), spec chi tiết (data model, API) để ở tài liệu riêng khi tới lượt triển khai.
+- Option "mô tả nền theo ý bạn" hiện chạy qua PhotoRoom Sandbox mode — ảnh kết quả có watermark, chưa dùng được cho mục đích thật (đăng bán hàng). Cần chốt: hiện tạm cho người dùng thật dùng thử (biết có watermark), hay ẩn khỏi UI thật cho tới khi nâng gói Plus trả phí — xem chuc-nang-tao-anh-ai.md mục 11.

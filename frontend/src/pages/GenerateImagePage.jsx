@@ -181,7 +181,12 @@ export default function GenerateImagePage() {
               <button className={`opt-card${bgMode === 'prompt' ? ' on' : ''}`} onClick={() => setBgMode('prompt')}>
                 <span className="opt-swatch">Aa</span>
                 <span className="opt-txt">
-                  <b>Mô tả nền theo ý bạn</b>
+                  <b>
+                    Mô tả nền theo ý bạn{' '}
+                    <span className="soon-badge" style={{ background: 'var(--warn-soft)', color: 'var(--warn)', marginLeft: 4 }}>
+                      Có watermark
+                    </span>
+                  </b>
                   <span>Tự nhập nền bạn muốn, AI vẽ theo mô tả</span>
                 </span>
                 <span className="opt-radio" />
@@ -211,7 +216,10 @@ export default function GenerateImagePage() {
                   value={promptText}
                   onChange={(e) => setPromptText(e.target.value)}
                 />
-                <span className="hint">AI sẽ vẽ nền mới theo mô tả này rồi ghép sản phẩm lên trên — có thể mất lâu hơn bình thường.</span>
+                <span className="hint">
+                  AI sẽ vẽ nền mới theo mô tả này — có thể mất lâu hơn bình thường.{' '}
+                  <b style={{ color: 'var(--warn)' }}>Ảnh kết quả sẽ có watermark "Photoroom", chưa dùng để đăng bán được.</b>
+                </span>
               </div>
             )}
           </div>
@@ -242,7 +250,7 @@ export default function GenerateImagePage() {
               <div className="gen-title">Đang xử lý ảnh…</div>
               <div className="gen-sub">
                 {bgMode === 'prompt'
-                  ? 'Đang vẽ nền theo mô tả rồi ghép ảnh — có thể mất đến 1 phút.'
+                  ? 'Đang vẽ nền theo mô tả — có thể lâu hơn bình thường.'
                   : 'Có thể mất 10–20 giây.'}{' '}
                 Đừng rời khỏi trang trong lúc chờ nhé.
               </div>

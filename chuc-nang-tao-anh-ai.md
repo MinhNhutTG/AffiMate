@@ -153,21 +153,17 @@ Backend chỉ nhận và forward các key sau, mọi key khác bị bỏ qua (kh
 
 > `bgColor` và `backgroundPrompt` **loại trừ nhau** — gửi cả 2 cùng lúc bị coi là option không hợp lệ (400).
 
-**`backgroundPrompt` — đã triển khai, KHÔNG cần nâng gói PhotoRoom Plus.** Ban đầu tưởng bắt buộc phải dùng "AI Backgrounds" của PhotoRoom Plus (endpoint `/v2/edit`, tham số `background.prompt`), nhưng thực tế làm được bằng cách ghép 3 bước hoàn toàn tách biệt — không phụ thuộc PhotoRoom cho phần sinh nền:
-1. **Xoá nền** ảnh gốc — vẫn dùng PhotoRoom Basic/free (`/v1/segment`, provider `photoroomBasic` sẵn có, mục 9.1) → ra ảnh PNG có nền trong suốt.
-2. **Sinh ảnh nền theo mô tả** — gọi **Hugging Face Inference Providers** qua SDK chính thức `@huggingface/inference` (`InferenceClient.textToImage()`), model text-to-image (mặc định `black-forest-labs/FLUX.1-schnell`, cấu hình qua env `HUGGINGFACE_BG_MODEL`).
-3. **Ghép ảnh** — dùng thư viện `sharp` (xử lý ảnh thuần, không cần AI) để resize ảnh nền cho khớp kích thước, rồi ghép ảnh sản phẩm (có alpha) lên trên.
+**`backgroundPrompt` — đã triển khai bằng chính PhotoRoom, KHÔNG cần nâng gói Plus trả phí.** PhotoRoom có **Sandbox mode** miễn phí áp dụng được cho cả Image Editing API (`/v2/edit`, gồm AI Backgrounds/`background.prompt`) — không phải chỉ Remove Background API. Cách dùng: thêm tiền tố `sandbox_` vào `PHOTOROOM_API_KEY` hiện có khi gửi header `x-api-key` (không cần tài khoản/key khác).
 
-Về code: đây là provider riêng `aiBackgroundComposite` (mục 9.2), tự gọi lại `photoroomBasic.generate()` cho bước 1 — ví dụ cụ thể cho việc tái sử dụng provider đã có thay vì viết lại. `photoroomPlus` (mục 9.2) vẫn giữ nguyên là stub chưa triển khai, không còn là điều kiện bắt buộc cho tính năng này nữa.
+> Lịch sử: 2 phương án trước đó (nâng gói Plus trả phí; tự ghép Hugging Face + `sharp`) đều đã bị thay bằng phương án này sau khi tra lại kỹ tài liệu PhotoRoom — đơn giản hơn nhiều (1 API call, PhotoRoom tự lo việc canh vị trí/ánh sáng/bóng đổ, đã test qua ảnh thật cho kết quả rất tốt) và không cần thêm tài khoản/thư viện ghép ảnh nào.
 
-> ⚠️ **Đã sửa lại sau khi kiểm tra kỹ hơn**: bản đầu tiên định gọi thẳng endpoint REST cũ (`api-inference.huggingface.co/models/...`) — hoá ra Hugging Face đã đổi kiến trúc sang **"Inference Providers"** (router trung gian, phần lớn route qua nhà cung cấp thứ 3 tính phí). Đã đổi sang dùng SDK chính thức `@huggingface/inference` để SDK tự lo việc chọn provider khả dụng, tránh tự đoán sai định dạng request khi HF tiếp tục thay đổi kiến trúc.
+Về code: provider riêng `photoroomBackgroundPrompt` (mục 9.2), gọi `POST https://image-api.photoroom.com/v2/edit` với `imageFile` (binary, tải từ `sourceImageUrl` giống `photoroomBasic`), `referenceBox=originalImage` (giữ khung ảnh gốc để canh sản phẩm — theo đúng ví dụ chính thức PhotoRoom), và `background.prompt`. `photoroomPlus`/hướng Hugging Face không còn được dùng cho tính năng này.
 
-**Đánh đổi cần biết**:
-- Gói miễn phí của Hugging Face là **credit hàng tháng có hạn mức** (không phải unlimited) — dùng nhiều có thể hết credit, cần theo dõi thực tế mức tiêu thụ.
-- Model `black-forest-labs/FLUX.1-schnell` (Apache-2.0, dùng thương mại được) là model **"gated"** — người tạo `HUGGINGFACE_API_KEY` cần tự vào trang model trên huggingface.co bấm "Agree" 1 lần trước khi gọi được qua API.
-- Model có thể "cold start" (chậm ở lần gọi đầu), và chất lượng/độ ổn định nhìn chung không bằng dịch vụ trả phí chuyên dụng.
-- **Cẩn thận khi đổi model khác**: một số model text-to-image trên Hugging Face có giấy phép **cấm dùng thương mại** (vd `stabilityai/stable-diffusion-3-medium-diffusers` — Stability Non-Commercial Research Community License) — không phù hợp cho AffiMate (sản phẩm phục vụ bán hàng). Phải kiểm tra license của model trước khi đổi `HUGGINGFACE_BG_MODEL`.
-- Tổng thời gian tạo 1 ảnh theo mô tả (xoá nền + sinh nền + ghép) **lâu hơn đáng kể** so với "xoá nền"/"đổi màu" thường (xem mục 9.1 — có thể tới ~1 phút thay vì ~20s).
+**⚠️ Đánh đổi QUAN TRỌNG cần biết — đã kiểm chứng bằng ảnh thật:**
+- **Ảnh trả về LUÔN có watermark "Photoroom" phủ kín (tile) toàn bộ ảnh** — không tắt được ở sandbox mode. Chỉ hết watermark nếu dùng key production thật của gói Plus (trả phí) — đổi qua env `PHOTOROOM_BACKGROUND_SANDBOX=false` khi đã nâng gói.
+- **Ảnh có watermark hiện KHÔNG dùng được cho mục đích thật** (đăng bán hàng trên TikTok Shop) — chỉ phù hợp để demo/test tính năng ở giai đoạn hiện tại. Cần bạn xác nhận: có chấp nhận tạm để watermark cho tới khi nâng gói Plus, hay tạm ẩn option này khỏi UI cho tới khi có ngân sách?
+- Giới hạn **1.000 lượt/tháng, tối đa 100 lượt/ngày** — tính **chung cho toàn app** (theo 1 API key), không phải riêng từng user. Với quota hiện tại (10 ảnh/user/ngày), chỉ cần ~10 user cùng dùng option này trong 1 ngày là có thể chạm trần sandbox chung — **chưa có cơ chế bảo vệ riêng cho giới hạn này** (mục 11).
+- Chất lượng thực tế đã test tốt: PhotoRoom tự xử lý đúng ánh sáng/bóng đổ/phối cảnh sản phẩm theo mô tả, không cần tự ghép ảnh thủ công.
 
 ---
 
@@ -267,10 +263,10 @@ Vì mục 9.1 đã xác nhận gói Basic bắt buộc fetch-rồi-forward, còn
 - **`imageAiService.generate()`**: luôn nhận `{ sourceImageUrl, options }`, luôn trả về `{ buffer, contentType }` khi thành công (để controller upload lên Cloudinary), hoặc throw lỗi có phân loại rõ (vd `ImageAiTimeoutError`, `ImageAiUpstreamError`) — để controller xử lý `failed`/`502` mà không cần biết chi tiết lỗi gốc từ PhotoRoom hay từ bước fetch Cloudinary.
 - Bên trong `imageAiService`, chọn 1 trong các "provider implementation" theo config (vd biến môi trường `IMAGE_AI_PROVIDER=photoroom-basic`) hoặc theo chính option client gửi lên:
   - `photoroomBasic` — tải buffer từ `sourceImageUrl`, forward `image_file` multipart tới `/v1/segment` (dùng cho `removeBackground`/`bgColor`).
-  - `photoroomPlus` — gửi thẳng `imageUrl` tới `/v2/edit` (khi nâng gói, chỉ cần thêm file này + đổi config, không sửa gì khác) — hiện vẫn là stub chưa triển khai (không còn bắt buộc, xem `aiBackgroundComposite` bên dưới).
-  - `aiBackgroundComposite` — **đã triển khai**, xử lý riêng option `backgroundPrompt` (mục 6): tự gọi lại `photoroomBasic.generate()` để xoá nền, gọi Hugging Face Inference API để sinh nền theo mô tả, rồi dùng `sharp` ghép 2 ảnh lại. Ví dụ cụ thể cho việc 1 provider tái sử dụng provider khác thay vì phụ thuộc nâng gói PhotoRoom.
+  - `photoroomPlus` — gửi thẳng `imageUrl` tới `/v2/edit` bằng key production thật (khi nâng gói, chỉ cần thêm file này + đổi config, không sửa gì khác) — hiện vẫn là stub chưa triển khai, không bắt buộc.
+  - `photoroomBackgroundPrompt` — **đã triển khai**, xử lý riêng option `backgroundPrompt` (mục 6): gọi `POST /v2/edit` của PhotoRoom bằng **Sandbox mode** (key có tiền tố `sandbox_`, miễn phí nhưng ảnh có watermark — xem cảnh báo ở mục 6). Ví dụ cụ thể cho việc 1 option cần hẳn 1 provider riêng dù cùng là PhotoRoom, vì khác endpoint (`/v2/edit` so với `/v1/segment`) và khác cơ chế xác thực (tiền tố `sandbox_`).
   - Nếu sau này đổi hẳn sang provider khác ngoài PhotoRoom, chỉ cần thêm 1 provider mới cùng interface — khớp với field `provider` đã có sẵn trong schema `GeneratedImage` ở `kientruc-ky-thuat.md` mục 3, cho thấy hướng nhiều-provider đã được tính từ đầu.
-  - `imageAiService.generate()` chọn `aiBackgroundComposite` ngay khi thấy `options.backgroundPrompt` có giá trị, bất kể `IMAGE_AI_PROVIDER` đang cấu hình gì — vì đây luôn là lựa chọn đúng cho option đó, không phải 1 "gói" thay thế toàn bộ.
+  - `imageAiService.generate()` chọn `photoroomBackgroundPrompt` ngay khi thấy `options.backgroundPrompt` có giá trị, bất kể `IMAGE_AI_PROVIDER` đang cấu hình gì — vì đây luôn là lựa chọn đúng cho option đó, không phải 1 "gói" thay thế toàn bộ.
 - **Mapping option → tham số thật của provider** (vd `bgColor` → `bg_color`) nằm **bên trong provider**, không nằm ở controller — nhờ vậy whitelist option nội bộ (mục 6) giữ ổn định dù tên tham số thật của PhotoRoom đổi giữa các gói/version.
 
 Đây chỉ là 1 lớp interface mỏng (1 hàm, 1 factory chọn provider theo config) — không cần dựng hẳn hệ thống plugin phức tạp ở MVP, chỉ cần đủ để đổi gói/provider sau này không phải sửa rải rác nhiều nơi trong code.
@@ -294,11 +290,11 @@ Vì mục 9.1 đã xác nhận gói Basic bắt buộc fetch-rồi-forward, còn
 - [ ] Tạo sản phẩm với nhiều ảnh (vd 3 ảnh) → `Product.originalImageUrls` lưu đủ, đúng thứ tự upload.
 - [ ] Tạo ảnh AI, chọn đúng 1 ảnh trong nhiều ảnh gốc → `GeneratedImage.sourceImageUrl` đúng ảnh đã chọn; các ảnh gốc khác của sản phẩm không bị đụng tới.
 - [ ] Gửi `sourceImageUrl` không thuộc sản phẩm (URL ảnh của sản phẩm khác hoặc URL bất kỳ) → trả `400`, không gọi PhotoRoom.
-- [ ] Tạo ảnh với `backgroundPrompt` → xoá nền qua PhotoRoom, sinh nền qua Hugging Face, ghép bằng `sharp` → `status = success`, ảnh kết quả có nền đúng theo mô tả (kiểm tra bằng mắt).
+- [x] Tạo ảnh với `backgroundPrompt` → gọi PhotoRoom Sandbox (`/v2/edit`) → `status = success`, ảnh kết quả có nền đúng theo mô tả **(đã test bằng ảnh thật — chất lượng tốt, có watermark như đã biết)**.
 - [ ] Gửi cả `bgColor` và `backgroundPrompt` cùng lúc → trả `400` (loại trừ nhau, mục 6).
 - [ ] `backgroundPrompt` dài hơn 200 ký tự → trả `400`.
-- [ ] Chưa cấu hình `HUGGINGFACE_API_KEY` mà vẫn gọi `backgroundPrompt` → `status = failed`, `502`, không crash server.
-- [ ] Hugging Face trả lỗi/model đang cold-start (JSON thay vì ảnh) → xử lý như lỗi upstream, không cố parse JSON thành ảnh.
+- [ ] Chưa cấu hình `PHOTOROOM_API_KEY` mà vẫn gọi `backgroundPrompt` → `status = failed`, `502`, không crash server.
+- [ ] PhotoRoom Sandbox trả lỗi/hết lượt trong ngày (>100 lượt/ngày chung toàn app) → xử lý như lỗi upstream, thông báo rõ cho user (khác với "hết quota cá nhân" — cần phân biệt rõ ở UI).
 
 ---
 
@@ -313,5 +309,6 @@ Vì mục 9.1 đã xác nhận gói Basic bắt buộc fetch-rồi-forward, còn
 7. Danh sách field thông tin mở rộng của sản phẩm (mục 4) — cần bạn cung cấp cụ thể để thiết kế schema.
 8. Tính năng "Sinh nội dung tự động" (mục 1, 3.1) — dự kiến khi nào cần spec chi tiết riêng?
 9. Xác nhận gói PhotoRoom đang đăng ký đúng là **Basic/free** (dùng endpoint `/v1/segment`, bắt buộc gửi `image_file` binary — mục 9.1) hay có kế hoạch nâng **Plus** (`/v2/edit`, hỗ trợ `imageUrl`) để quyết định có cần tối ưu bước fetch/forward ảnh gốc không.
-10. ~~Có đồng ý chi phí nâng gói PhotoRoom lên Plus không?~~ — không còn cần thiết: option "Mô tả nền theo ý bạn" (`backgroundPrompt`) đã triển khai bằng Hugging Face Inference API (miễn phí) + `sharp` ghép ảnh, không phụ thuộc PhotoRoom Plus (mục 6, 9.2). Cần bạn tự đăng ký tài khoản Hugging Face (miễn phí) để lấy `HUGGINGFACE_API_KEY`.
-11. Model text-to-image mặc định `black-forest-labs/FLUX.1-schnell` (cấu hình qua `HUGGINGFACE_BG_MODEL`) — cần kiểm tra thực tế tốc độ/chất lượng/giới hạn rate limit của gói miễn phí Hugging Face có đáp ứng đủ trải nghiệm người dùng không, hay cần đổi model khác.
+10. ~~Có đồng ý chi phí nâng gói PhotoRoom lên Plus không?~~ — không còn cần thiết ở bước hiện tại: option "Mô tả nền theo ý bạn" (`backgroundPrompt`) dùng PhotoRoom **Sandbox mode** (miễn phí, mục 6, 9.2), không cần key production/gói Plus trả phí.
+11. **Ảnh sandbox có watermark "Photoroom" phủ kín, chưa dùng được cho mục đích thật (đăng bán hàng)** — cần bạn quyết định: (a) chấp nhận tạm để watermark cho tới khi có ngân sách nâng gói Plus, hay (b) tạm ẩn option "Mô tả nền theo ý bạn" khỏi UI cho người dùng thật, chỉ dùng nội bộ để demo/test cho tới khi nâng gói.
+12. Giới hạn sandbox **100 lượt/ngày chung cho toàn app** (không phải theo user) — cần cơ chế đếm/chặn riêng khi gần chạm trần (khác với quota 10 ảnh/user/ngày hiện có) để tránh 1 vài user dùng hết lượt sandbox rồi user khác gặp lỗi khó hiểu — hiện **chưa có cơ chế này**, mới chỉ ghi nhận là rủi ro biết trước.
