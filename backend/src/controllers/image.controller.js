@@ -7,6 +7,8 @@ const asyncHandler = require('../utils/asyncHandler');
 const { BadRequestError, NotFoundError, ForbiddenError, UpstreamError } = require('../utils/errors');
 const { loadOwnedProduct } = require('./product.controller');
 
+const MAX_PROMPT_LENGTH = 200;
+
 // Whitelist — mục 6 chuc-nang-tao-anh-ai.md. Chỉ forward đúng các key này,
 // không bao giờ forward nguyên object client gửi lên.
 function sanitizeOptions(raw) {
@@ -14,7 +16,15 @@ function sanitizeOptions(raw) {
   if (raw && raw.removeBackground === true) {
     options.removeBackground = true;
   }
-  if (raw && typeof raw.bgColor === 'string') {
+
+  const hasBgColor = raw && typeof raw.bgColor === 'string';
+  const hasPrompt = raw && typeof raw.backgroundPrompt === 'string' && raw.backgroundPrompt.trim().length > 0;
+
+  if (hasBgColor && hasPrompt) {
+    throw new BadRequestError('Tuỳ chọn không hợp lệ: chỉ chọn 1 trong 2, màu nền đơn sắc hoặc mô tả nền');
+  }
+
+  if (hasBgColor) {
     if (!/^#[0-9a-fA-F]{6}$/.test(raw.bgColor)) {
       throw new BadRequestError('Tuỳ chọn không hợp lệ: bgColor phải là mã hex, vd #FFFFFF');
     }
@@ -23,6 +33,18 @@ function sanitizeOptions(raw) {
     }
     options.bgColor = raw.bgColor;
   }
+
+  if (hasPrompt) {
+    const prompt = raw.backgroundPrompt.trim();
+    if (prompt.length > MAX_PROMPT_LENGTH) {
+      throw new BadRequestError(`Mô tả nền quá dài (tối đa ${MAX_PROMPT_LENGTH} ký tự)`);
+    }
+    // Mô tả nền luôn bắt đầu từ ảnh đã xoá nền — không cần client tự gửi
+    // removeBackground riêng cho trường hợp này.
+    options.removeBackground = true;
+    options.backgroundPrompt = prompt;
+  }
+
   if (Object.keys(options).length === 0) {
     throw new BadRequestError('Tuỳ chọn không hợp lệ');
   }

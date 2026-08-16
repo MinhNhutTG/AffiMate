@@ -4,6 +4,7 @@ const providers = {
   'photoroom-basic': require('./providers/photoroomBasic'),
   'photoroom-plus': require('./providers/photoroomPlus'),
 };
+const aiBackgroundComposite = require('./providers/aiBackgroundComposite');
 
 function getProvider() {
   const key = process.env.IMAGE_AI_PROVIDER || 'photoroom-basic';
@@ -17,7 +18,15 @@ function getProvider() {
 // generate({ sourceImageUrl, options }) => { buffer, contentType }
 // hoặc throw ImageAiTimeoutError / ImageAiUpstreamError — controller không cần biết
 // provider bên trong xử lý bằng cách nào (fetch-rồi-forward hay gửi thẳng URL).
+//
+// `backgroundPrompt` luôn đi qua provider ghép ảnh riêng (aiBackgroundComposite —
+// xoá nền bằng PhotoRoom Basic + sinh nền bằng Hugging Face + ghép bằng sharp),
+// KHÔNG phụ thuộc IMAGE_AI_PROVIDER/gói PhotoRoom Plus — xem chuc-nang-tao-anh-ai.md
+// mục 6.
 function generate(args) {
+  if (args.options?.backgroundPrompt) {
+    return aiBackgroundComposite.generate(args);
+  }
   return getProvider().generate(args);
 }
 

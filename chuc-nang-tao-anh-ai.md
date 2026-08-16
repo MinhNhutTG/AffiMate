@@ -147,14 +147,20 @@ Backend chỉ nhận và forward các key sau, mọi key khác bị bỏ qua (kh
 |---|---|---|
 | `removeBackground` | `true` | Xoá nền, trả nền trong suốt |
 | `bgColor` | mã hex, vd `#FFFFFF` | Thay nền bằng màu (chỉ áp dụng khi `removeBackground = true`) |
-| `backgroundPrompt` | chuỗi text tự do, vd `"nền gỗ sáng, ánh nắng tự nhiên"` | **[MỚI — cần xác nhận ngân sách, xem cảnh báo dưới]** Nền do AI sinh ra theo mô tả người dùng nhập, thay vì chọn màu đơn sắc |
+| `backgroundPrompt` | chuỗi text tự do, tối đa 200 ký tự, vd `"nền gỗ sáng, ánh nắng tự nhiên"` | Nền do AI sinh ra theo mô tả người dùng nhập, thay vì chọn màu đơn sắc |
 
 > MVP đề xuất **chỉ làm "xoá nền" + "nền màu đơn sắc"**, chưa làm "thay nền theo mẫu ảnh có sẵn" (phức tạp hơn, cần thêm asset mẫu) — để phase sau.
 
-> ⚠️ **`backgroundPrompt` — đã xác nhận qua tài liệu PhotoRoom: KHÔNG dùng được ở gói Basic/free hiện tại.** Đây là tính năng "AI Backgrounds", chỉ có ở endpoint `POST/GET /v2/edit` của gói **Plus** (trả phí), tham số `background.prompt` — khác hẳn `bg_color` (chỉ đổi màu đơn sắc) của endpoint `/v1/segment` gói Basic đang dùng (mục 9.1). Nghĩa là:
-> - Nếu muốn có tính năng này **thật sự hoạt động**, bắt buộc phải nâng gói PhotoRoom lên Plus (tốn phí) — không chỉnh được bằng cách nào khác ở gói free.
-> - Về mặt code: đúng như thiết kế ở mục 9.2, đây sẽ là 1 provider mới (`photoroomPlus`) dùng `/v2/edit`, không đụng vào provider Basic hiện tại đang dùng cho `removeBackground`/`bgColor`.
-> - Cần bạn xác nhận: có đồng ý chi phí nâng gói Plus không? Nếu chưa, nên hiện option này trên UI ở dạng "sắp có, cần nâng gói" (xem mục 3.2) thay vì cho user nhập rồi báo lỗi khi gọi API.
+> `bgColor` và `backgroundPrompt` **loại trừ nhau** — gửi cả 2 cùng lúc bị coi là option không hợp lệ (400).
+
+**`backgroundPrompt` — đã triển khai, KHÔNG cần nâng gói PhotoRoom Plus.** Ban đầu tưởng bắt buộc phải dùng "AI Backgrounds" của PhotoRoom Plus (endpoint `/v2/edit`, tham số `background.prompt`), nhưng thực tế làm được bằng cách ghép 3 bước hoàn toàn tách biệt — không phụ thuộc PhotoRoom cho phần sinh nền:
+1. **Xoá nền** ảnh gốc — vẫn dùng PhotoRoom Basic/free (`/v1/segment`, provider `photoroomBasic` sẵn có, mục 9.1) → ra ảnh PNG có nền trong suốt.
+2. **Sinh ảnh nền theo mô tả** — gọi **Hugging Face Inference API** (có gói miễn phí), model text-to-image (mặc định `black-forest-labs/FLUX.1-schnell`, cấu hình qua env `HUGGINGFACE_BG_MODEL`).
+3. **Ghép ảnh** — dùng thư viện `sharp` (xử lý ảnh thuần, không cần AI) để resize ảnh nền cho khớp kích thước, rồi ghép ảnh sản phẩm (có alpha) lên trên.
+
+Về code: đây là provider riêng `aiBackgroundComposite` (mục 9.2), tự gọi lại `photoroomBasic.generate()` cho bước 1 — ví dụ cụ thể cho việc tái sử dụng provider đã có thay vì viết lại. `photoroomPlus` (mục 9.2) vẫn giữ nguyên là stub chưa triển khai, không còn là điều kiện bắt buộc cho tính năng này nữa.
+
+**Đánh đổi cần biết**: gói miễn phí của Hugging Face Inference API có giới hạn tốc độ/số request, model có thể "cold start" (chậm ở lần gọi đầu), và chất lượng/độ ổn định nhìn chung không bằng dịch vụ trả phí chuyên dụng. Tổng thời gian tạo 1 ảnh theo mô tả (xoá nền + sinh nền + ghép) **lâu hơn đáng kể** so với "xoá nền"/"đổi màu" thường (xem mục 9.1 — có thể tới ~1 phút thay vì ~20s).
 
 ---
 
@@ -252,10 +258,12 @@ Vì mục 9.1 đã xác nhận gói Basic bắt buộc fetch-rồi-forward, còn
 
 - **Route/controller `generate-image`**: chỉ lo nghiệp vụ — auth, ownership, quota, validate `sourceImageUrl` thuộc sản phẩm, whitelist `options`, tạo bản ghi `GeneratedImage(status=pending)`, gọi **1 hàm duy nhất** `imageAiService.generate({ sourceImageUrl, options })`, rồi xử lý kết quả/lỗi để cập nhật DB. Controller **không biết** bên trong hàm này tải ảnh kiểu gì.
 - **`imageAiService.generate()`**: luôn nhận `{ sourceImageUrl, options }`, luôn trả về `{ buffer, contentType }` khi thành công (để controller upload lên Cloudinary), hoặc throw lỗi có phân loại rõ (vd `ImageAiTimeoutError`, `ImageAiUpstreamError`) — để controller xử lý `failed`/`502` mà không cần biết chi tiết lỗi gốc từ PhotoRoom hay từ bước fetch Cloudinary.
-- Bên trong `imageAiService`, chọn 1 trong các "provider implementation" theo config (vd biến môi trường `IMAGE_AI_PROVIDER=photoroom-basic`):
-  - `photoroomBasic` — tải buffer từ `sourceImageUrl`, forward `image_file` multipart tới `/v1/segment` (cách đang dùng hiện tại).
-  - `photoroomPlus` — gửi thẳng `imageUrl` tới `/v2/edit` (khi nâng gói, chỉ cần thêm file này + đổi config, không sửa gì khác).
+- Bên trong `imageAiService`, chọn 1 trong các "provider implementation" theo config (vd biến môi trường `IMAGE_AI_PROVIDER=photoroom-basic`) hoặc theo chính option client gửi lên:
+  - `photoroomBasic` — tải buffer từ `sourceImageUrl`, forward `image_file` multipart tới `/v1/segment` (dùng cho `removeBackground`/`bgColor`).
+  - `photoroomPlus` — gửi thẳng `imageUrl` tới `/v2/edit` (khi nâng gói, chỉ cần thêm file này + đổi config, không sửa gì khác) — hiện vẫn là stub chưa triển khai (không còn bắt buộc, xem `aiBackgroundComposite` bên dưới).
+  - `aiBackgroundComposite` — **đã triển khai**, xử lý riêng option `backgroundPrompt` (mục 6): tự gọi lại `photoroomBasic.generate()` để xoá nền, gọi Hugging Face Inference API để sinh nền theo mô tả, rồi dùng `sharp` ghép 2 ảnh lại. Ví dụ cụ thể cho việc 1 provider tái sử dụng provider khác thay vì phụ thuộc nâng gói PhotoRoom.
   - Nếu sau này đổi hẳn sang provider khác ngoài PhotoRoom, chỉ cần thêm 1 provider mới cùng interface — khớp với field `provider` đã có sẵn trong schema `GeneratedImage` ở `kientruc-ky-thuat.md` mục 3, cho thấy hướng nhiều-provider đã được tính từ đầu.
+  - `imageAiService.generate()` chọn `aiBackgroundComposite` ngay khi thấy `options.backgroundPrompt` có giá trị, bất kể `IMAGE_AI_PROVIDER` đang cấu hình gì — vì đây luôn là lựa chọn đúng cho option đó, không phải 1 "gói" thay thế toàn bộ.
 - **Mapping option → tham số thật của provider** (vd `bgColor` → `bg_color`) nằm **bên trong provider**, không nằm ở controller — nhờ vậy whitelist option nội bộ (mục 6) giữ ổn định dù tên tham số thật của PhotoRoom đổi giữa các gói/version.
 
 Đây chỉ là 1 lớp interface mỏng (1 hàm, 1 factory chọn provider theo config) — không cần dựng hẳn hệ thống plugin phức tạp ở MVP, chỉ cần đủ để đổi gói/provider sau này không phải sửa rải rác nhiều nơi trong code.
@@ -279,6 +287,11 @@ Vì mục 9.1 đã xác nhận gói Basic bắt buộc fetch-rồi-forward, còn
 - [ ] Tạo sản phẩm với nhiều ảnh (vd 3 ảnh) → `Product.originalImageUrls` lưu đủ, đúng thứ tự upload.
 - [ ] Tạo ảnh AI, chọn đúng 1 ảnh trong nhiều ảnh gốc → `GeneratedImage.sourceImageUrl` đúng ảnh đã chọn; các ảnh gốc khác của sản phẩm không bị đụng tới.
 - [ ] Gửi `sourceImageUrl` không thuộc sản phẩm (URL ảnh của sản phẩm khác hoặc URL bất kỳ) → trả `400`, không gọi PhotoRoom.
+- [ ] Tạo ảnh với `backgroundPrompt` → xoá nền qua PhotoRoom, sinh nền qua Hugging Face, ghép bằng `sharp` → `status = success`, ảnh kết quả có nền đúng theo mô tả (kiểm tra bằng mắt).
+- [ ] Gửi cả `bgColor` và `backgroundPrompt` cùng lúc → trả `400` (loại trừ nhau, mục 6).
+- [ ] `backgroundPrompt` dài hơn 200 ký tự → trả `400`.
+- [ ] Chưa cấu hình `HUGGINGFACE_API_KEY` mà vẫn gọi `backgroundPrompt` → `status = failed`, `502`, không crash server.
+- [ ] Hugging Face trả lỗi/model đang cold-start (JSON thay vì ảnh) → xử lý như lỗi upstream, không cố parse JSON thành ảnh.
 
 ---
 
@@ -293,4 +306,5 @@ Vì mục 9.1 đã xác nhận gói Basic bắt buộc fetch-rồi-forward, còn
 7. Danh sách field thông tin mở rộng của sản phẩm (mục 4) — cần bạn cung cấp cụ thể để thiết kế schema.
 8. Tính năng "Sinh nội dung tự động" (mục 1, 3.1) — dự kiến khi nào cần spec chi tiết riêng?
 9. Xác nhận gói PhotoRoom đang đăng ký đúng là **Basic/free** (dùng endpoint `/v1/segment`, bắt buộc gửi `image_file` binary — mục 9.1) hay có kế hoạch nâng **Plus** (`/v2/edit`, hỗ trợ `imageUrl`) để quyết định có cần tối ưu bước fetch/forward ảnh gốc không.
-10. **Có đồng ý chi phí nâng gói PhotoRoom lên Plus không?** — bắt buộc phải nâng gói mới dùng được option "Mô tả nền theo ý bạn" (`backgroundPrompt`, mục 6). Nếu chưa duyệt ngân sách, option này nên tạm ẩn hoặc hiện dạng "Cần nâng gói" trên UI, không nhận input rồi gọi API thất bại.
+10. ~~Có đồng ý chi phí nâng gói PhotoRoom lên Plus không?~~ — không còn cần thiết: option "Mô tả nền theo ý bạn" (`backgroundPrompt`) đã triển khai bằng Hugging Face Inference API (miễn phí) + `sharp` ghép ảnh, không phụ thuộc PhotoRoom Plus (mục 6, 9.2). Cần bạn tự đăng ký tài khoản Hugging Face (miễn phí) để lấy `HUGGINGFACE_API_KEY`.
+11. Model text-to-image mặc định `black-forest-labs/FLUX.1-schnell` (cấu hình qua `HUGGINGFACE_BG_MODEL`) — cần kiểm tra thực tế tốc độ/chất lượng/giới hạn rate limit của gói miễn phí Hugging Face có đáp ứng đủ trải nghiệm người dùng không, hay cần đổi model khác.

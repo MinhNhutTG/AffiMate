@@ -133,6 +133,8 @@ PHOTOROOM_API_KEY=
 CLOUDINARY_CLOUD_NAME=
 CLOUDINARY_API_KEY=
 CLOUDINARY_API_SECRET=
+HUGGINGFACE_API_KEY=   # dùng cho option "mô tả nền theo ý bạn" — chuc-nang-tao-anh-ai.md mục 6
+HUGGINGFACE_BG_MODEL=  # model text-to-image, mặc định black-forest-labs/FLUX.1-schnell
 ```
 
 ---

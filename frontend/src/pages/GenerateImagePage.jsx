@@ -27,8 +27,9 @@ export default function GenerateImagePage() {
   const [loadError, setLoadError] = useState('');
   const [step, setStep] = useState('picker'); // picker | options | generating | result | error | quota
   const [sourceIndex, setSourceIndex] = useState(0);
-  const [bgMode, setBgMode] = useState('transparent'); // transparent | color
+  const [bgMode, setBgMode] = useState('transparent'); // transparent | color | prompt
   const [selectedSwatch, setSelectedSwatch] = useState(SWATCHES[0]);
+  const [promptText, setPromptText] = useState('');
   const [result, setResult] = useState(null);
   const [errorMessage, setErrorMessage] = useState('');
   const [quotaResetAt, setQuotaResetAt] = useState('');
@@ -42,9 +43,15 @@ export default function GenerateImagePage() {
       .catch((err) => setLoadError(err.message));
   }, [id]);
 
+  function buildOptions() {
+    if (bgMode === 'color') return { removeBackground: true, bgColor: selectedSwatch.hex };
+    if (bgMode === 'prompt') return { removeBackground: true, backgroundPrompt: promptText.trim() };
+    return { removeBackground: true };
+  }
+
   async function handleGenerate() {
     const sourceImageUrl = product.originalImages[sourceIndex].url;
-    const options = bgMode === 'color' ? { removeBackground: true, bgColor: selectedSwatch.hex } : { removeBackground: true };
+    const options = buildOptions();
 
     setStep('generating');
     try {
@@ -171,17 +178,13 @@ export default function GenerateImagePage() {
                 </span>
                 <span className="opt-radio" />
               </button>
-              <button className="opt-card" disabled>
+              <button className={`opt-card${bgMode === 'prompt' ? ' on' : ''}`} onClick={() => setBgMode('prompt')}>
                 <span className="opt-swatch">Aa</span>
                 <span className="opt-txt">
-                  <b>
-                    Mô tả nền theo ý bạn{' '}
-                    <span className="soon-badge" style={{ background: 'var(--warn-soft)', color: 'var(--warn)', marginLeft: 4 }}>
-                      Cần nâng gói
-                    </span>
-                  </b>
+                  <b>Mô tả nền theo ý bạn</b>
                   <span>Tự nhập nền bạn muốn, AI vẽ theo mô tả</span>
                 </span>
+                <span className="opt-radio" />
               </button>
             </div>
 
@@ -198,9 +201,26 @@ export default function GenerateImagePage() {
                 ))}
               </div>
             )}
+
+            {bgMode === 'prompt' && (
+              <div className="field">
+                <input
+                  type="text"
+                  maxLength={200}
+                  placeholder="VD: nền gỗ sáng, ánh nắng tự nhiên, tối giản..."
+                  value={promptText}
+                  onChange={(e) => setPromptText(e.target.value)}
+                />
+                <span className="hint">AI sẽ vẽ nền mới theo mô tả này rồi ghép sản phẩm lên trên — có thể mất lâu hơn bình thường.</span>
+              </div>
+            )}
           </div>
           <div className="cta-bar">
-            <button className="btn btn-primary" onClick={handleGenerate}>
+            <button
+              className="btn btn-primary"
+              onClick={handleGenerate}
+              disabled={bgMode === 'prompt' && promptText.trim().length === 0}
+            >
               Tạo ảnh AI
             </button>
           </div>
@@ -220,7 +240,12 @@ export default function GenerateImagePage() {
             <div className="spinner" />
             <div>
               <div className="gen-title">Đang xử lý ảnh…</div>
-              <div className="gen-sub">Có thể mất 10–20 giây. Đừng rời khỏi trang trong lúc chờ nhé.</div>
+              <div className="gen-sub">
+                {bgMode === 'prompt'
+                  ? 'Đang vẽ nền theo mô tả rồi ghép ảnh — có thể mất đến 1 phút.'
+                  : 'Có thể mất 10–20 giây.'}{' '}
+                Đừng rời khỏi trang trong lúc chờ nhé.
+              </div>
             </div>
           </div>
         </>
@@ -248,7 +273,11 @@ export default function GenerateImagePage() {
               </div>
             </div>
             <div className="tag-row">
-              <span className="tag">{bgMode === 'color' ? `Nền ${selectedSwatch.name}` : 'Xoá nền'}</span>
+              <span className="tag">
+                {bgMode === 'color' && `Nền ${selectedSwatch.name}`}
+                {bgMode === 'prompt' && `Nền: "${promptText}"`}
+                {bgMode === 'transparent' && 'Xoá nền'}
+              </span>
               <span className="tag time">Vừa xong · Ảnh gốc #{sourceIndex + 1}</span>
             </div>
           </div>

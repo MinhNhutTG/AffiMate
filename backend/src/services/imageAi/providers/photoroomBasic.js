@@ -1,26 +1,12 @@
 // Provider cho gói PhotoRoom Basic/free — endpoint /v1/segment, chỉ nhận image_file
 // dạng binary (KHÔNG có tham số URL) — đã xác nhận qua tài liệu PhotoRoom, xem
 // chuc-nang-tao-anh-ai.md mục 9.1. Vì vậy bước fetch-rồi-forward là bắt buộc.
-const { ImageAiTimeoutError, ImageAiUpstreamError } = require('../errors');
+const { ImageAiUpstreamError } = require('../errors');
+const { fetchWithTimeout } = require('../fetchWithTimeout');
 
 const FETCH_SOURCE_TIMEOUT_MS = Number(process.env.FETCH_SOURCE_TIMEOUT_MS || 10000);
 const PHOTOROOM_TIMEOUT_MS = Number(process.env.PHOTOROOM_TIMEOUT_MS || 20000);
 const PHOTOROOM_ENDPOINT = 'https://sdk.photoroom.com/v1/segment';
-
-async function fetchWithTimeout(url, opts, timeoutMs) {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    return await fetch(url, { ...opts, signal: controller.signal });
-  } catch (err) {
-    if (err.name === 'AbortError') {
-      throw new ImageAiTimeoutError('Timeout');
-    }
-    throw err;
-  } finally {
-    clearTimeout(timer);
-  }
-}
 
 // Mapping whitelist nội bộ (mục 6 chuc-nang-tao-anh-ai.md) -> tham số thật của PhotoRoom.
 // Đặt trong provider, không ở controller, để đổi tên tham số thật không ảnh hưởng
