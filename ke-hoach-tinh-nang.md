@@ -81,7 +81,7 @@ Chú thích trạng thái: ✅ Xong & đã commit · 🟡 Đã code, **chưa com
 
 | Chức năng | Trạng thái | Ghi chú |
 |---|---|---|
-| Deploy backend (Render/Railway) + frontend (Vercel) | ⬜ | Chưa thấy cấu hình deploy trong repo — cần xác nhận đã deploy hay còn local-only |
+| Deploy backend (Render) + frontend (Vercel) | ⬜ | `render.yaml` (Blueprint, free tier) đã có ở gốc repo. `app.js` đã đọc `FRONTEND_URL` để siết CORS khi deploy — không set thì mặc định mở (local dev). Các bước còn lại cần thao tác trực tiếp trên dashboard Render/Vercel (đăng nhập tài khoản) — xem mục 3.7 bên dưới |
 | `AI_FEATURE_DISABLED` cờ tắt khẩn cấp toàn hệ thống | ⬜ | Đề xuất ở `chuc-nang-tao-anh-ai.md` mục 5, chưa thấy code — nên làm chung cho cả ảnh lẫn content khi có thời gian, không gấp |
 
 ---
@@ -98,6 +98,16 @@ Thứ tự dưới đây là đề xuất mặc định để cứ thế làm ti
 6. **Voice AI MVP** — theo kiến trúc tương tự (model riêng, quota riêng, provider layer tách biệt).
 7. **Deploy** khi các tính năng MVP (auth, admin, ảnh, content) đã ổn định qua test — đây là bước có chi phí/rủi ro vận hành, nên xác nhận trước khi bấm nút deploy thật.
 
+### 3.7 Hướng dẫn deploy free — Render (backend) + Vercel (frontend)
+
+Hạ tầng đã chuẩn bị sẵn trong repo (`render.yaml`, CORS đọc `FRONTEND_URL`). Các bước dưới đây cần đăng nhập dashboard Render/Vercel nên phải tự thao tác:
+
+1. **Render** → New → Blueprint → chọn repo `AffiMate` → Render tự đọc `render.yaml`. Điền các biến đánh dấu "sync: false" bằng giá trị thật trong `backend/.env` (MONGODB_URI, JWT_SECRET, CLOUDINARY_*, PHOTOROOM_API_KEY, CLOUDFLARE_*). `FRONTEND_URL` để trống ở bước này, điền sau khi có domain Vercel.
+2. Deploy xong, lấy URL dạng `https://affimate-backend.onrender.com`. Free tier: instance ngủ sau ~15 phút không traffic, request đầu tiên sau đó chậm (cold start).
+3. **Vercel** → New Project → import repo, root directory `frontend`, framework Vite (auto-detect). Thêm env `VITE_API_BASE_URL=https://affimate-backend.onrender.com/api`. Deploy → lấy domain dạng `https://affimate.vercel.app`.
+4. Quay lại Render, điền `FRONTEND_URL=https://affimate.vercel.app` (thêm cả `http://localhost:5173` nếu vẫn muốn dev local gọi được backend production, cách nhau dấu phẩy) → Render tự redeploy.
+5. Test lại toàn bộ luồng (đăng nhập, tạo sản phẩm, tạo ảnh AI, tạo content AI, admin) trên domain thật trước khi coi là xong.
+
 ---
 
 ## 4. Quyết định đã chốt (để không hỏi lại)
@@ -113,3 +123,4 @@ Thứ tự dưới đây là đề xuất mặc định để cứ thế làm ti
 ## 5. Nhật ký cập nhật tài liệu
 
 - 2026-08-20 — Tạo tài liệu, tổng hợp trạng thái tại thời điểm: Content AI + Admin dashboard đã code xong (chưa commit, chưa test), tính năng Image-Prompt (ChatGPT helper) phát hiện thêm chưa có trong tài liệu cũ nào.
+- 2026-08-21 — Đã commit + push toàn bộ Content AI, Admin dashboard, Image-Prompt helper (5 commit theo nhóm chức năng). Chuẩn bị hạ tầng deploy free: `render.yaml` (Blueprint), CORS đọc `FRONTEND_URL`, đổi `JWT_SECRET` yếu (`helpmom`) sang chuỗi ngẫu nhiên mạnh trong `.env` local. Còn thiếu: test qua UI, chạy thử `create-admin`, và tự thao tác deploy trên dashboard Render/Vercel (xem mục 3.7).

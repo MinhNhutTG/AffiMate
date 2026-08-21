@@ -1,0 +1,51 @@
+services:
+  - type: web
+    name: affimate-backend
+    runtime: node
+    rootDir: backend
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: PORT
+        value: 4000
+      - key: MONGODB_URI
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: JWT_EXPIRES_IN
+        value: 7d
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
+        sync: false
+      - key: PHOTOROOM_API_KEY
+        sync: false
+      - key: IMAGE_AI_PROVIDER
+        value: photoroom-basic
+      - key: DAILY_IMAGE_GEN_LIMIT
+        value: 10
+      - key: FETCH_SOURCE_TIMEOUT_MS
+        value: 10000
+      - key: PHOTOROOM_TIMEOUT_MS
+        value: 20000
+      - key: CLOUDFLARE_ACCOUNT_ID
+        sync: false
+      - key: CLOUDFLARE_API_TOKEN
+        sync: false
+      - key: BACKGROUND_PROMPT_PROVIDER
+        value: photoroom-sandbox
+      - key: PHOTOROOM_BACKGROUND_SANDBOX
+        value: "true"
+      - key: CONTENT_AI_PROVIDER
+        value: cloudflare
+      - key: CLOUDFLARE_CONTENT_MODEL
+        value: "@cf/meta/llama-3.1-8b-instruct"
+      - key: CLOUDFLARE_CONTENT_TIMEOUT_MS
+        value: 30000
+      - key: DAILY_CONTENT_GEN_LIMIT
+        value: 10
+      - key: FRONTEND_URL
+        sync: false
