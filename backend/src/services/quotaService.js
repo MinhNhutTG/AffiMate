@@ -3,6 +3,7 @@ const { TooManyRequestsError } = require('../utils/errors');
 
 // mục 5 chuc-nang-tao-anh-ai.md — biến môi trường để chỉnh không cần sửa code
 const DAILY_LIMIT = Number(process.env.DAILY_IMAGE_GEN_LIMIT || 10);
+const DAILY_CONTENT_LIMIT = Number(process.env.DAILY_CONTENT_GEN_LIMIT || 10);
 const VN_TZ = 'Asia/Ho_Chi_Minh';
 const VN_OFFSET_MINUTES = 7 * 60; // Asia/Ho_Chi_Minh không có DST, lệch cố định UTC+7
 
@@ -32,21 +33,21 @@ function resetAtVN() {
 // sang hôm nay rồi), request này phải thử lại nhánh "tăng count" chứ không được kết
 // luận ngay là hết quota — nếu không sẽ báo hết quota sai cho request đến sau dù
 // count thật sự vẫn còn dư.
-async function consumeQuota(userId) {
+async function consumeQuotaField(userId, field, limit, notFoundMessage) {
   const today = todayVN();
   const MAX_ATTEMPTS = 5;
 
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
     let user = await User.findOneAndUpdate(
-      { _id: userId, 'imageGenUsage.date': today, 'imageGenUsage.count': { $lt: DAILY_LIMIT } },
-      { $inc: { 'imageGenUsage.count': 1 } },
+      { _id: userId, [`${field}.date`]: today, [`${field}.count`]: { $lt: limit } },
+      { $inc: { [`${field}.count`]: 1 } },
       { new: true }
     );
     if (user) return user;
 
     user = await User.findOneAndUpdate(
-      { _id: userId, 'imageGenUsage.date': { $ne: today } },
-      { $set: { 'imageGenUsage.date': today, 'imageGenUsage.count': 1 } },
+      { _id: userId, [`${field}.date`]: { $ne: today } },
+      { $set: { [`${field}.date`]: today, [`${field}.count`]: 1 } },
       { new: true }
     );
     if (user) return user;
@@ -54,15 +55,23 @@ async function consumeQuota(userId) {
     // Cả 2 nhánh đều không match — xác nhận lại đúng lý do trước khi báo hết quota:
     // có thể count thật sự đã chạm limit, hoặc chỉ là thua 1 request khác vừa đổi
     // date sang hôm nay (nhánh "reset" phía trên) — trường hợp sau thì thử lại vòng lặp.
-    const current = await User.findById(userId).select('imageGenUsage');
-    const usage = current && current.imageGenUsage;
-    if (usage && usage.date === today && usage.count >= DAILY_LIMIT) {
-      throw new TooManyRequestsError('Đã hết lượt tạo ảnh hôm nay', { resetAt: resetAtVN() });
+    const current = await User.findById(userId).select(field);
+    const usage = current && current[field];
+    if (usage && usage.date === today && usage.count >= limit) {
+      throw new TooManyRequestsError(notFoundMessage, { resetAt: resetAtVN() });
     }
     // Ngược lại: thua race condition, thử lại ngay.
   }
 
-  throw new TooManyRequestsError('Đã hết lượt tạo ảnh hôm nay', { resetAt: resetAtVN() });
+  throw new TooManyRequestsError(notFoundMessage, { resetAt: resetAtVN() });
 }
 
-module.exports = { consumeQuota, DAILY_LIMIT };
+function consumeQuota(userId) {
+  return consumeQuotaField(userId, 'imageGenUsage', DAILY_LIMIT, 'Đã hết lượt tạo ảnh hôm nay');
+}
+
+function consumeContentQuota(userId) {
+  return consumeQuotaField(userId, 'contentGenUsage', DAILY_CONTENT_LIMIT, 'Đã hết lượt tạo nội dung hôm nay');
+}
+
+module.exports = { consumeQuota, consumeContentQuota, DAILY_LIMIT, DAILY_CONTENT_LIMIT };

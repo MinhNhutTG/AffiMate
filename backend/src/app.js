@@ -6,6 +6,7 @@ const userRoutes = require('./routes/user.routes');
 const adminRoutes = require('./routes/admin.routes');
 const productRoutes = require('./routes/product.routes');
 const imageRoutes = require('./routes/image.routes');
+const contentRoutes = require('./routes/content.routes');
 const { errorHandler } = require('./middleware/errorHandler');
 
 const app = express();
@@ -20,6 +21,7 @@ app.use('/api/users', userRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/images', imageRoutes);
+app.use('/api/contents', contentRoutes);
 
 app.use((req, res) => res.status(404).json({ message: 'Không tìm thấy route' }));
 app.use(errorHandler);

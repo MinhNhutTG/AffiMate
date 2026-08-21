@@ -13,6 +13,11 @@ const userSchema = new mongoose.Schema(
       date: { type: String, default: '' }, // 'YYYY-MM-DD' theo giờ VN
       count: { type: Number, default: 0 },
     },
+    // quota tạo nội dung/kịch bản AI — cùng cơ chế với imageGenUsage
+    contentGenUsage: {
+      date: { type: String, default: '' },
+      count: { type: Number, default: 0 },
+    },
   },
   { timestamps: true }
 );
