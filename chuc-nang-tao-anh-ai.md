@@ -135,6 +135,20 @@ Ngoài `name`, `description`, sản phẩm dự kiến có thêm các trường 
 - Nên có thêm 1 biến môi trường `DAILY_IMAGE_GEN_LIMIT` để chỉnh không cần sửa code khi biết quota PhotoRoom chính xác.
 - **Global fallback**: nếu PhotoRoom trả lỗi liên quan đến hết quota tháng (billing/limit error), nên có cờ `AI_FEATURE_DISABLED` (đọc từ DB hoặc env, admin bật/tắt được) để tắt tạm tính năng toàn hệ thống thay vì để mỗi user tự gặp lỗi khó hiểu.
 
+### 5.1 Thiết kế cờ `AI_FEATURE_DISABLED` — [ĐỀ XUẤT, chưa code]
+
+Dùng chung cho cả ảnh AI và content AI (`chuc-nang-noi-dung-ai.md` mục 5) — cả 2 đều phụ thuộc dịch vụ ngoài free tier có thể bị chặn/hết hạn mức bất ngờ.
+
+- **Lưu ở đâu**: 1 document đơn `SystemConfig` trong Mongo (không dùng env) — vì cần **admin bật/tắt runtime** không redeploy, khác các biến env khác trong tài liệu này vốn chỉ đổi lúc deploy.
+  ```js
+  { key: 'ai_feature_disabled', value: Boolean, updatedBy: ObjectId, updatedAt: Date, reason: String }
+  ```
+- **Nơi kiểm tra**: 1 middleware `checkAiEnabled` gắn trước `generate-image` và `generate-content` (không gắn vào toàn bộ app, chỉ 2 route tốn phí dịch vụ ngoài) — đọc `SystemConfig`, nếu `true` thì trả `503 { message: 'Tính năng AI đang tạm khoá để bảo trì, vui lòng quay lại sau' }` ngay, không chạm tới quota hay gọi provider.
+- **Cache trong process**: đọc DB mỗi request sẽ tốn round-trip không cần thiết cho 1 giá trị hiếm khi đổi — cache in-memory, TTL ngắn (vd 30s) hoặc invalidate ngay khi admin đổi giá trị (đơn giản hơn: TTL 30s là đủ, không cần cơ chế invalidate phức tạp ở quy mô này).
+- **API cho admin**: `GET /api/admin/ai-status`, `PUT /api/admin/ai-status` `{ value: Boolean, reason }` — thêm vào `admin.routes.js`, hiện 1 toggle đơn giản trên `AdminUsersPage` hoặc trang admin riêng khi làm.
+- **Không tự động bật cờ này** khi provider lỗi 1 lần — chỉ admin bật tay sau khi xác nhận sự cố diện rộng (tránh 1 lỗi thoáng qua của user A làm gián đoạn tất cả user khác).
+- Đây là việc **chưa cấp thiết** (`ke-hoach-tinh-nang.md` mục 2.7) — chỉ code khi thực sự gặp sự cố diện rộng lần đầu, hoặc khi rảnh tay sau khi các tính năng MVP khác đã ổn định.
+
 ---
 
 ## 6. Options gửi cho PhotoRoom — whitelist
@@ -321,3 +335,59 @@ Vì mục 9.1 đã xác nhận gói Basic bắt buộc fetch-rồi-forward, còn
 12. ~~Cần credentials Cloudflare để test provider `cloudflareBackgroundPrompt`~~ — **đã test xong** bằng `CLOUDFLARE_ACCOUNT_ID`/`CLOUDFLARE_API_TOKEN` thật. Kết quả: request đúng định dạng (đã sửa từ model inpainting sang img2img theo ví dụ thật) nhưng liên tục lỗi "Capacity temporarily exceeded" — xem mục 6.
 13. **Khi nào mở lại "Mô tả nền theo ý bạn" cho user thật?** — cần 1 trong các điều kiện: (a) Cloudflare hết quá tải và ổn định qua nhiều lần test lại, hoặc (b) chấp nhận watermark của PhotoRoom Sandbox và cho dùng thử có cảnh báo, hoặc (c) có ngân sách nâng gói PhotoRoom Plus / dịch vụ trả phí khác (Google Gemini/Nano Banana — chất lượng tốt nhất nhưng không có free tier). Hiện chưa chọn hướng nào, tạm khoá hẳn (mục 11 câu 11).
 14. Giới hạn Cloudflare **10.000 neurons/ngày chung cho toàn tài khoản** (không phải theo user) — tương tự rủi ro đã ghi nhận với PhotoRoom Sandbox; vẫn **chưa có cơ chế đếm/chặn riêng** khi gần chạm trần — chưa cấp thiết vì tính năng đang khoá, chưa có traffic thật.
+
+---
+
+## 12. "Mô tả ảnh (ChatGPT)" — trợ lý sinh prompt JSON (thay thế `backgroundPrompt`)
+
+Tính năng mới, thêm sau khi khoá `backgroundPrompt` (mục 11 câu 11) — giải pháp thay thế **né hẳn** vấn đề watermark/quá tải bằng cách không tự gọi AI vẽ ảnh, mà hỗ trợ user tự dán prompt vào ChatGPT. **[ĐÃ CHỐT]** đây là tính năng thay thế hợp lệ, giữ nguyên khi `backgroundPrompt` mở lại (2 tính năng phục vụ nhu cầu khác nhau — xem `ke-hoach-tinh-nang.md` mục 4).
+
+### 12.1 Mục đích & phạm vi
+
+- Thuần **frontend**, không gọi AI backend, không tốn quota/chi phí — khác hẳn cơ chế của mục 1–11 ở trên.
+- User điền các trường mô tả cảnh chụp mong muốn (bối cảnh, phong cách, ánh sáng, bố cục, màu chủ đạo, tỷ lệ khung hình, điều cần tránh, ghi chú) → trang tự sinh 1 khối JSON → user tự sao chép, tự dán vào ChatGPT **cùng với** ảnh sản phẩm gốc (tự tải lên ChatGPT, AffiMate không gửi ảnh hộ) để ChatGPT vẽ ảnh mới.
+- Không lưu lại lịch sử các prompt đã tạo (không có model DB riêng) — mỗi lần vào trang là state mới, mất khi rời trang.
+
+### 12.2 User flow
+
+1. Từ `ProductDetailPage`, bấm thẻ "Mô tả ảnh (ChatGPT)" → sang `ImagePromptPage` (`/products/:id/image-prompt`).
+2. Điền các field (tất cả tuỳ chọn trừ *Tỷ lệ xuất ảnh* có giá trị mặc định `9:16 (TikTok/Story)`):
+   - **Đặc điểm nổi bật**: textarea tự do.
+   - **Bối cảnh / Phong cách / Ánh sáng / Bố cục**: chọn 1 trong danh sách chip gợi ý sẵn, hoặc gõ giá trị riêng rồi Enter để thêm chip mới (component `SingleChipField`, chọn tối đa 1 giá trị/field).
+   - **Màu chủ đạo**: chọn 1 trong bảng màu dùng chung `frontend/src/constants/colors.js` (cùng `SWATCHES` với `GenerateImagePage`, đã tách ra dùng chung ở lần refactor này).
+   - **Cần tránh**: multi-select chip (component `MultiChipField`), mặc định chọn sẵn "Không đổi hình dáng sản phẩm" + "Không thêm chữ/watermark" — 2 lưu ý quan trọng nhất để giữ đúng sản phẩm thật khi AI vẽ lại.
+   - **Ghi chú thêm**: textarea tự do.
+3. JSON xem trước tự động cập nhật real-time (không cần bấm nút "tạo") — hiện trong khối `<pre>` cuối trang.
+4. Bấm "Sao chép JSON" → `navigator.clipboard.writeText` → đổi label nút thành "Đã sao chép" 2.5s.
+5. User tự mở ChatGPT, dán JSON + đính kèm ảnh sản phẩm gốc (tải từ máy hoặc từ gallery ảnh gốc đã upload lên AffiMate), làm theo hướng dẫn trong `instruction` của JSON.
+
+### 12.3 Cấu trúc JSON sinh ra
+
+```json
+{
+  "affiMateImagePrompt": {
+    "instruction": "Tạo ảnh sản phẩm mới dựa trên ảnh gốc tôi đính kèm, giữ nguyên hình dáng/logo/nhãn của sản phẩm thật, chỉ thay đổi bối cảnh, ánh sáng và phong cách theo mô tả bên dưới.",
+    "product": { "name": "...", "description": "...", "keyFeatures": "..." },
+    "scene": { "background": "...", "style": "...", "lighting": "...", "composition": "...", "primaryColor": "Tên màu (#HEX)" },
+    "output": { "aspectRatio": "9:16 (TikTok/Story)" },
+    "avoid": ["Không đổi hình dáng sản phẩm", "Không thêm chữ/watermark"],
+    "notes": "..."
+  }
+}
+```
+> Các field rỗng bị loại khỏi JSON (`undefined` thay vì chuỗi rỗng) để prompt gọn, không đánh lừa ChatGPT bằng field trống.
+
+### 12.4 Testing checklist
+
+- [ ] Vào trang với sản phẩm có đủ `name`/`description` → JSON hiện đúng thông tin sản phẩm.
+- [ ] Chọn/bỏ chọn từng field gợi ý → JSON cập nhật đúng, real-time.
+- [ ] Gõ giá trị tuỳ chỉnh + Enter ở từng ô chip → thêm chip mới, chọn đúng chip vừa thêm.
+- [ ] Bỏ chọn hết "Cần tránh" → field `avoid` biến mất khỏi JSON (không phải mảng rỗng).
+- [ ] Bấm "Sao chép JSON" trên trình duyệt thật → đúng nội dung nằm trong clipboard, dán thử vào 1 ô text để xác nhận.
+- [ ] Trình duyệt chặn quyền clipboard (test giả lập lỗi) → hiện `error-banner` thân thiện, không crash trang.
+- [ ] Vào trang với id sản phẩm không tồn tại/không thuộc user → hiện lỗi tải sản phẩm đúng cách (403/404 từ `getProduct`).
+
+### 12.5 Việc cần làm thêm
+
+- Chưa test qua UI thật (chỉ mới đọc code xác nhận logic) — theo `ke-hoach-tinh-nang.md` mục 3 việc #1.
+- Cân nhắc thêm nút "Xem gallery ảnh gốc" ngay trong trang này để user tiện tải đúng ảnh lên ChatGPT, đỡ phải quay lại `ProductDetailPage` — cải tiến UX nhỏ, không gấp.
