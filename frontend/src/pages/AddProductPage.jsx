@@ -87,7 +87,7 @@ export default function AddProductPage() {
           </div>
         )}
 
-        {error && <div className="error-banner">{error}</div>}
+        {error && <div className="error-banner" role="alert">{error}</div>}
 
         <div className="field">
           <label htmlFor="name">Tên sản phẩm *</label>

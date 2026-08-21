@@ -6,21 +6,25 @@
   --surface-alt: #f2ede2;
   --ink: #20261d;
   --ink-soft: #6c7365;
-  --ink-faint: #9ba192;
+  --ink-faint: #8a9180; /* darkened from #9ba192 (2.5:1) to clear 3:1 non-text contrast; use only for decorative/icon glyphs, not body text (use --ink-soft for that) */
   --line: #e7e1d2;
 
   --brand: #0e8f6f;
   --brand-soft: #e2f3eb;
+  --brand-text: #0c7b5f; /* darker than --brand for small text on --brand-soft; --brand itself only meets ~3.5:1 (WCAG AA text-4.5:1) */
 
   --primary: #ff5b3c;
   --primary-dark: #e24725;
   --primary-ink: #ffffff;
   --primary-soft: #ffe7de;
+  --primary-fill: #d83e1d; /* solid button fill only — white text on --primary is 3.08:1 (fails AA 4.5:1); this hits 4.54:1. --primary itself stays untouched for links/icons/borders/hover */
 
   --warn: #c97a1f;
   --warn-soft: #fbeedb;
+  --warn-text: #9b5e18; /* darker than --warn for small text on --warn-soft (WCAG AA text-4.5:1) */
   --error: #d14343;
   --error-soft: #fbe6e6;
+  --error-text: #c53030; /* darker than --error for small text on --error-soft (WCAG AA text-4.5:1) */
 
   --checker-a: #ededed;
   --checker-b: #dcdcdc;

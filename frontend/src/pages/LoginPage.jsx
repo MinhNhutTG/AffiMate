@@ -30,7 +30,7 @@ export default function LoginPage() {
         <h1>Đăng nhập</h1>
       </div>
       <form className="body" onSubmit={handleSubmit}>
-        {error && <div className="error-banner">{error}</div>}
+        {error && <div className="error-banner" role="alert">{error}</div>}
         <div className="field">
           <label htmlFor="email">Email</label>
           <input id="email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" />

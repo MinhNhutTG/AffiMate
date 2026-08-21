@@ -2,9 +2,10 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { listProducts } from '../api/products';
 import { useAuth } from '../context/AuthContext';
+import { BoxIcon } from '../components/icons';
 
 export default function ProductListPage() {
-  const { logout } = useAuth();
+  const { user, logout } = useAuth();
   const [products, setProducts] = useState(null);
   const [error, setError] = useState('');
 
@@ -25,9 +26,16 @@ export default function ProductListPage() {
     <div className="page">
       <div className="list-head">
         <h1>Sản phẩm của tôi</h1>
-        <button className="link-btn" onClick={logout} style={{ padding: 0 }}>
-          Đăng xuất
-        </button>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          {user?.role === 'admin' && (
+            <Link className="link-btn" to="/admin/users" style={{ padding: 0 }}>
+              Quản trị
+            </Link>
+          )}
+          <button className="link-btn" onClick={logout} style={{ padding: 0 }}>
+            Đăng xuất
+          </button>
+        </span>
       </div>
 
       {loading && (
@@ -38,14 +46,16 @@ export default function ProductListPage() {
 
       {error && (
         <div className="body">
-          <div className="error-banner">{error}</div>
+          <div className="error-banner" role="alert">{error}</div>
         </div>
       )}
 
       {empty && (
         <div className="body">
           <div className="empty-wrap">
-            <div className="empty-frame">📦</div>
+            <div className="empty-frame">
+              <BoxIcon style={{ width: 36, height: 36, color: 'var(--ink-faint)' }} />
+            </div>
             <h2>Chưa có sản phẩm nào</h2>
             <p>Thêm sản phẩm đầu tiên để bắt đầu tạo ảnh AI cho nội dung bán hàng của bạn.</p>
             <Link className="btn btn-primary" to="/products/new" style={{ maxWidth: 230 }}>
@@ -82,7 +92,7 @@ export default function ProductListPage() {
           <div className="body">
             {products.map((p) => (
               <Link key={p._id} className="product-card" to={`/products/${p._id}`}>
-                <img className="thumb" src={p.originalImages[0]?.url} alt="" />
+                <img className="thumb" src={p.originalImages[0]?.url} alt={p.name} />
                 <span className="pc-body">
                   <h3>{p.name}</h3>
                   <span className="pc-meta">{p.originalImages.length} ảnh gốc</span>

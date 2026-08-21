@@ -31,7 +31,7 @@ export default function RegisterPage() {
         <h1>Đăng ký</h1>
       </div>
       <form className="body" onSubmit={handleSubmit}>
-        {error && <div className="error-banner">{error}</div>}
+        {error && <div className="error-banner" role="alert">{error}</div>}
         <div className="field">
           <label htmlFor="name">Tên của bạn</label>
           <input id="name" type="text" required value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" />

@@ -2,8 +2,11 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { getProduct, deleteProduct } from '../api/products';
 import { listImages, deleteImage } from '../api/images';
-import { SparkleIcon } from '../components/icons';
+import { listContents, deleteContent } from '../api/contents';
+import { SparkleIcon, ClipboardIcon } from '../components/icons';
 import ConfirmDialog from '../components/ConfirmDialog';
+
+const TONE_LABEL = { 'gan-gui': 'Gần gũi', 'hai-huoc': 'Hài hước', 'chuyen-nghiep': 'Chuyên nghiệp' };
 
 function optionsLabel(options) {
   if (options?.bgColor) return `Nền màu ${options.bgColor}`;
@@ -28,6 +31,7 @@ export default function ProductDetailPage() {
 
   const [product, setProduct] = useState(null);
   const [images, setImages] = useState(null);
+  const [contents, setContents] = useState(null);
   const [error, setError] = useState('');
   const [toast, setToast] = useState('');
   const [deleting, setDeleting] = useState(false);
@@ -35,10 +39,11 @@ export default function ProductDetailPage() {
 
   const load = useCallback((signal) => {
     setError('');
-    Promise.all([getProduct(id, { signal }), listImages(id, { limit: 20, signal })])
-      .then(([p, imgRes]) => {
+    Promise.all([getProduct(id, { signal }), listImages(id, { limit: 20, signal }), listContents(id, { limit: 20, signal })])
+      .then(([p, imgRes, contentRes]) => {
         setProduct(p);
         setImages(imgRes.items);
+        setContents(contentRes.items);
       })
       .catch((err) => {
         if (err.name !== 'AbortError') setError(err.message);
@@ -53,7 +58,7 @@ export default function ProductDetailPage() {
 
   function showToast(msg) {
     setToast(msg);
-    setTimeout(() => setToast(''), 2000);
+    setTimeout(() => setToast(''), 3500);
   }
 
   function sourceIndexLabel(sourceImageUrl) {
@@ -66,6 +71,15 @@ export default function ProductDetailPage() {
     try {
       await deleteImage(imageId);
       setImages((prev) => prev.filter((img) => img._id !== imageId));
+    } catch (err) {
+      showToast(err.message);
+    }
+  }
+
+  async function handleDeleteContent(contentId) {
+    try {
+      await deleteContent(contentId);
+      setContents((prev) => prev.filter((c) => c._id !== contentId));
     } catch (err) {
       showToast(err.message);
     }
@@ -90,7 +104,7 @@ export default function ProductDetailPage() {
           <button className="icon-btn icon-back" aria-label="Quay lại" onClick={() => navigate('/products')} />
         </div>
         <div className="body">
-          <div className="error-banner">{error}</div>
+          <div className="error-banner" role="alert">{error}</div>
         </div>
       </div>
     );
@@ -114,7 +128,7 @@ export default function ProductDetailPage() {
       </div>
 
       <div className="body">
-        {error && <div className="error-banner">{error}</div>}
+        {error && <div className="error-banner" role="alert">{error}</div>}
 
         <div>
           <div className="hint" style={{ marginBottom: 8, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.09em' }}>
@@ -134,11 +148,18 @@ export default function ProductDetailPage() {
             </span>
             <span className="a-sub">Xoá nền / đổi màu nền bằng AI</span>
           </Link>
-          <button className="action-card muted" onClick={() => showToast('Tính năng đang phát triển')}>
-            <span className="soon-badge">Sắp có</span>
-            <span className="a-title">Sinh nội dung tự động</span>
+          <Link className="action-card muted" to={`/products/${id}/generate-content`} style={{ cursor: 'pointer' }}>
+            <span className="a-title">
+              <SparkleIcon /> Sinh nội dung tự động
+            </span>
             <span className="a-sub">Kịch bản, nội dung TikTok</span>
-          </button>
+          </Link>
+          <Link className="action-card muted" to={`/products/${id}/image-prompt`} style={{ cursor: 'pointer' }}>
+            <span className="a-title">
+              <ClipboardIcon /> Mô tả ảnh (ChatGPT)
+            </span>
+            <span className="a-sub">Tạo JSON để dán vào ChatGPT vẽ ảnh</span>
+          </Link>
         </div>
 
         <div>
@@ -180,6 +201,39 @@ export default function ProductDetailPage() {
           )}
         </div>
 
+        <div>
+          <div className="section-title">
+            <h3>Lịch sử nội dung đã tạo</h3>
+            <span>{contents ? contents.length : '…'} lần tạo</span>
+          </div>
+
+          {contents && contents.length === 0 && (
+            <p className="hint" style={{ marginTop: 8 }}>
+              Chưa có nội dung AI nào — bấm "Sinh nội dung tự động" để bắt đầu.
+            </p>
+          )}
+
+          {contents && contents.length > 0 && (
+            <div className="content-history-list" style={{ marginTop: 9 }}>
+              {contents.map((c) => (
+                <div className="content-history-card" key={c._id}>
+                  <div className="chc-main">
+                    <div className="chc-top">
+                      <span className={`status-pill ${c.status}`}>{STATUS_LABEL[c.status]}</span>
+                      <span className="chc-tone">{TONE_LABEL[c.tone] || 'Gần gũi'}</span>
+                    </div>
+                    {c.status === 'success' && <p className="chc-hook">{c.hook}</p>}
+                    <span className="chc-when">{formatDateTime(c.createdAt)}</span>
+                  </div>
+                  <button className="content-history-del" aria-label="Xoá nội dung" onClick={() => handleDeleteContent(c._id)}>
+                    ×
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
         <button className="btn btn-ghost" onClick={() => setConfirmOpen(true)} style={{ marginTop: 8, color: 'var(--error)' }}>
           Xoá sản phẩm
         </button>
@@ -197,6 +251,8 @@ export default function ProductDetailPage() {
 
       {toast && (
         <div
+          role="status"
+          aria-live="polite"
           style={{
             position: 'fixed',
             left: '50%',
