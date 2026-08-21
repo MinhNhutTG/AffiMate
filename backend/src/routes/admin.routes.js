@@ -4,6 +4,8 @@ const { requireRole } = require('../middleware/requireRole');
 const asyncHandler = require('../utils/asyncHandler');
 const User = require('../models/User');
 const Product = require('../models/Product');
+const GeneratedImage = require('../models/GeneratedImage');
+const GeneratedContent = require('../models/GeneratedContent');
 const { NotFoundError, BadRequestError } = require('../utils/errors');
 
 router.use(authenticate, requireRole('admin'));
@@ -14,6 +16,20 @@ router.use(authenticate, requireRole('admin'));
 function escapeRegex(str) {
   return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
+
+// Thẻ số liệu tổng quan cho trang Admin — tailieubandau.md mục 6.
+router.get('/stats', asyncHandler(async (req, res) => {
+  const [totalUsers, bannedUsers, adminUsers, totalProducts, totalGeneratedImages, totalGeneratedContents] = await Promise.all([
+    User.countDocuments({}),
+    User.countDocuments({ status: 'banned' }),
+    User.countDocuments({ role: 'admin' }),
+    Product.countDocuments({}),
+    GeneratedImage.countDocuments({}),
+    GeneratedContent.countDocuments({}),
+  ]);
+
+  res.json({ totalUsers, bannedUsers, adminUsers, totalProducts, totalGeneratedImages, totalGeneratedContents });
+}));
 
 router.get('/users', asyncHandler(async (req, res) => {
   const page = Math.max(1, Number(req.query.page) || 1);
